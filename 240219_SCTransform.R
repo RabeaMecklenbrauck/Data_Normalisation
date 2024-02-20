@@ -71,17 +71,17 @@ p2 <- FeaturePlot(ReferenceSeuratObj, reduction = 'umap', features = 'Pseudotime
 
 p1 + p2
 #Correct for a batch effect
-#in this case I would correct for Patient
+#in this case I would correct for Sample
 batchvar<-'Sample'
 
 #Map the data, mapping done using Symphony (Kang et al, 2021)
 mapped <- map_Query(
-  exp_query = obj_norm@assays$RNA@layers$counts,     #@assays$RNA@layers$counts,  #at this point I can't directly access counts
+  exp_query = obj_norm@assays$RNA$counts,     
   metadata_query = obj_norm@meta.data,
   ref_obj = ref,
   vars = batchvar
 )
-#Can't map to reference, no overlap in features???
+
 
 #Exclude cells with a high mapping error
 mapped<-mapped%>% calculate_MappingError(., reference=ref, MAD_threshold = 2.5)
@@ -103,7 +103,7 @@ mappedQC <- predict_CellTypes(
 ) 
 
 #Save mapped Seurat Object
-saveRDS(mappedQC, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Data_mapped_to reference")
+saveRDS(mappedQC, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Annotated_SCTransform")
 #Show Umap
 DimPlot(mappedQC, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
 
@@ -124,10 +124,10 @@ save_ProjectionResults(
   file_name = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129IvoVen_data_mapped_labelled.csv'
 )
 
-#Mapping to reference failed
+
 #Try Deseq2 with annotations from flow
 #Create a subset for patient 11 BL and REL
-pt11<-subset(x=obj_norm, subset=Patient=='pt11')
+pt11<-subset(x=mappedQC, subset=Patient=='pt11')
 #Extract metadata
 data11<-pt11@meta.data
 #Create variable marking the dominant clone at BL and REL
@@ -140,7 +140,7 @@ table(data11$dominant, data11$clone.y, data11$Sample)
 pt11<-AddMetaData(object = pt11, metadata = data11, col.name = 'dominant')
 pt11_BL_REL<-subset(x=pt11, Sample %in% c("pt11-BL","pt11-REL"))
 ##Create a subset with only dominant population which is Precursors in this case
-pt11_BL_REL<-subset(x=pt11_BL_REL, subset=Population=='Precursor')
+pt11_BL_REL<-subset(x=pt11_BL_REL, subset==predicted_CellType="LMPP")
 ##From this subset select the dominant clones
 pt11_BL_REL <- subset(x=pt11_BL_REL, dominant == "1")
 #Check whether the subsetting worked
