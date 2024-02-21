@@ -197,6 +197,7 @@ df <- read.csv("results/DEA_pt11_LMPP_padj.csv", row.names = 1)
 ## 2. Prepare background genes #leave this out if already done -----------------------------------------------
 # Download gene sets .gmt files
 #https://www.gsea-msigdb.org/gsea/msigdb/collections.jsp
+#Or use the files in the data folder on OneDrive "reference gene sets"
 # For GSEA
 # Filter out the gmt files for KEGG, Reactome and GOBP
 my_genes <- df_new$gene
