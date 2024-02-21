@@ -13,8 +13,8 @@ remotes::install_version("Matrix", version = "1.6-1.1")
 
 
 ####START NEW SCE CREATION
-transcriptome_indexes_merged <- readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240109_QC/0_transcriptome_indexes.rds")
-matrix <- readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240109_QC/0_matrix_reformatted.rds")
+transcriptome_indexes_merged <- readRDS("/data/0_transcriptome_indexes.rds")
+matrix <- readRDS("data/0_matrix_reformatted.rds")
 
 df <- data.frame(cell_id = colnames(matrix)) %>%
   mutate(n = row_number()) %>%
@@ -163,8 +163,8 @@ sce_filtered <- sce[,discard == FALSE]
 dim(sce_filtered)
 
 
-saveRDS(sce_filtered, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/sce_filtered_not_normalised.rds")
-sce_filtered<-readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/1_filtered.rds")
+saveRDS(sce_filtered, file = "/data/sce_filtered_not_normalised.rds")
+sce_filtered<-readRDS("/data/1_filtered.rds")
 # SCRAN normalisation #
 # Quick clustering
 remove.packages("Matrix")
