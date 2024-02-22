@@ -10,15 +10,15 @@ library(tibble)
 obj<-readRDS("/Users/rabeamecklenbrauck/Downloads/2_lognorm_seurat.rds")
 
 #Load the files with correct clone annotation
-pt4_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt4_FINAL_CNA_SNV_clones.csv")
-pt5_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt5_FINAL_CNA_SNV_clones.csv")
-pt_9_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt9_FINAL_CNA_SNV_clones.csv")
-pt10_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt10_clones_population.csv")
-pt11_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt11_clones_population.csv")
-pt14_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt14_FINAL_CNA_SNV_clones.csv")
-pt15_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt15_FINAL_CNA_SNV_clones.csv")
-pt18_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt18_clones_population.csv")
-pt20_annotations<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Excel files with final clone annotations/pt20_clones_population.csv")
+pt4_annotations<-read.csv("data/Excel files with final clone annotations/pt4_FINAL_CNA_SNV_clones.csv")
+pt5_annotations<-read.csv("data/Excel files with final clone annotations/pt5_FINAL_CNA_SNV_clones.csv")
+pt_9_annotations<-read.csv("data/Excel files with final clone annotations/pt9_FINAL_CNA_SNV_clones.csv")
+pt10_annotations<-read.csv("data/Excel files with final clone annotations/pt10_clones_population.csv")
+pt11_annotations<-read.csv("data/Excel files with final clone annotations/pt11_clones_population.csv")
+pt14_annotations<-read.csv("data/Excel files with final clone annotations/pt14_FINAL_CNA_SNV_clones.csv")
+pt15_annotations<-read.csv("data/Excel files with final clone annotations/pt15_FINAL_CNA_SNV_clones.csv")
+pt18_annotations<-read.csv("data/Excel files with final clone annotations/pt18_clones_population.csv")
+pt20_annotations<-read.csv("data/Excel files with final clone annotations/pt20_clones_population.csv")
 
 #Merge the annotation df
 #Make sure that in each DF the clone column is called the same
@@ -65,33 +65,32 @@ pt20_clone<-pt20_annotations[ , c("cell_id", "clone", "Population", "sampleID")]
 
 combined<-rbind(pt4_clone, pt5_clone, pt9_clone, pt10_clone, pt11_clone, pt14_clone, pt15_clone, pt18_clone, pt20_clone)
 table(combined$sampleID, combined$clone)
-write.csv( combined,file="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/new_clones_combined.csv")
-combined_new_clones<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/new_clones_combined.csv")
+write.csv( combined,file="results/new_clones_combined.csv")
+combined_new_clones<-read.csv("results/new_clones_combined.csv")
 rownames(combined)<-combined[,1]
 combined_clones<-combined[,c('clone','sampleID')]
 new_clones<-tibble::rownames_to_column(combined_clones, "cellID")
-write.csv(new_clones, file="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/new_clones.csv")
-write.csv(obj@meta.data, file="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Metadata_transcriptome.csv")
+write.csv(new_clones, file="results/new_clones.csv")
+write.csv(obj@meta.data, file="results/Metadata_transcriptome.csv")
 rownames(combined_new_clones)<-combined_new_clones[,2]
 combined_new_clones<-combined_new_clones[, c('clone')]
 object<-obj@meta.data
 object <- tibble::rownames_to_column(object, "cellID")
 
-write.csv(object, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Seurat_metadata.csv")
+write.csv(object, "results/Seurat_metadata.csv")
 combined_metadata<-left_join(object, new_clones, by="cellID")
-write.csv(combined_metadata, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Metadata_combined.csv")
-combined_metadata<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Metadata_combined.csv")
+write.csv(combined_metadata, "results/Metadata_combined.csv")
+combined_metadata<-read.csv("results/Metadata_combined.csv")
 sum(is.na(combined_metadata$clone.y))
 new_clones_meta<-combined_metadata[c("clone.y", "cellID")]
-install.packages("tibble")
-library(tibble)
+)
 
 #Add metadata with CNA annotations
-combined_metadata<-read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Metadata_combined.csv")
+combined_metadata<-read.csv("results/Metadata_combined.csv")
 sum(is.na(combined_metadata$clone.y))
 new_clones_meta<-combined_metadata[c("clone.y", "cellID")]
 library(tibble)
 new_clones_meta <- new_clones_meta %>% remove_rownames %>% column_to_rownames(var="cellID") 
 obj<-AddMetaData(object=obj, new_clones_meta, col.name = 'clone.y')
 
-writeRDS(obj, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/R/IVO_VEN_RESISTANCE/data")
+writeRDS(obj, "/data/3_Seurat_CloneswithCNA.rds")

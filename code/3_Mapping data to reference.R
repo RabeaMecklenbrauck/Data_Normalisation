@@ -18,7 +18,7 @@ library(BoneMarrowMap)
 #Download the reference 
 
 # Set directory to store projection reference files
-projection_path = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/'
+projection_path = 'results/'
 #Extract metadata'
 
 # Download Bone Marrow Reference - 344 Mb
@@ -45,7 +45,7 @@ p2 <- FeaturePlot(ReferenceSeuratObj, reduction = 'umap', features = 'Pseudotime
 p1 + p2
 
 #Load the Seurat object which you want to map to the reference
-obj_new <- readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Seurat_CloneswithCNA.rds")
+obj_new <- readRDS("data/Seurat_CloneswithCNA.rds")
 
 #Correct for a batch effect
 #in this case I would correct for Patient
@@ -78,8 +78,8 @@ mappedQC <- predict_CellTypes(
   final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
 ) 
 
-#Save mapped Seurat Object
-saveRDS(mappedQC, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Data_mapped_to reference")
+#Save mapped Seurat Object ore continue to add pseudotime as well
+saveRDS(mappedQC, "data/4_Seurat_obj_CNA_referenceannotations.rds")
 #Show Umap
 DimPlot(mappedQC, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
 
@@ -97,7 +97,7 @@ save_ProjectionResults(
   celltype_label = 'predicted_CellType',
   celltype_KNNprob_label = 'predicted_CellType_prob',
   pseudotime_label = 'predicted_Pseudotime',
-  file_name = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129IvoVen_data_mapped_labelled.csv'
+  file_name = 'data/4_Seurat_obj_CNA_referenceannotations.rds.csv'
 )
 
 #Visualize projection density
@@ -112,7 +112,7 @@ projection_plots <- plot_Projection_byDonor(
   downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
   query_point_size = 0.2,   # adjust size of query cells based on # of cells
   saveplot = TRUE, 
-  save_folder = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis'
+  save_folder = 'results'
 )
 
 #Show plots together
@@ -129,7 +129,7 @@ query_composition <- get_Composition(
   return_type = 'long')
 
 query_composition
-write.csv(query_composition, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Ivo_Ven_all_cells_mapped.csv", row.names = FALSE)
+write.csv(query_composition, "results/table_annotations", row.names = FALSE)
 #with one row per patient
 query_composition2 <- get_Composition(
   query_obj = mappedQC, 
@@ -140,7 +140,7 @@ query_composition2 <- get_Composition(
   return_type = 'count')
 
 query_composition2
-write.csv(query_composition2, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Ivo_Ven_all_cells_mapped_persample.csv", row.names = FALSE)
+write.csv(query_composition2, "results/Ivo_Ven_all_cells_mapped_persample.csv", row.names = FALSE)
 #with one row per patient and proportion of cells
 query_composition3 <- get_Composition(
   query_obj = mappedQC, 
@@ -151,120 +151,17 @@ query_composition3 <- get_Composition(
   return_type = 'proportion')
 
 query_composition3 
-write.csv(query_composition2, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Ivo_Ven_all_cells_mapped_percellproprotion.csv", row.names = FALSE)
+write.csv(query_composition2, "results/Ivo_Ven_all_cells_mapped_percellproprotion.csv", row.names = FALSE)
 
 table1<-table(mappedQC$Population, mappedQC$predicted_CellType, mappedQC$Sample)
-write.csv(table1, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240129_Ivo_Ven_comparison_FACS_mapping.csv")
+write.csv(table1, "results/Ivo_Ven_comparison_FACS_mapping.csv")
 
 
 #Save the annotated Seurat object
-saveRDS(mappedQC,"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Seurat_obj_CNA_referenceannotations.rds" )
+saveRDS(mappedQC,"data/04_Seurat_obj_CNA_referenceannotations.rds" )
 
 
-
-
-#Visualize projection density
-#Set each condition to be visualized individually
-batch_key <- 'Sample'
-projection_plots <- plot_Projection_byDonor(
-  query_obj = mappedQC, 
-  batch_key = batch_key, 
-  ref_obj = ref, 
-  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
-  downsample_reference = TRUE, 
-  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
-  query_point_size = 0.2,   # adjust size of query cells based on # of cells
-  saveplot = TRUE, 
-  save_folder = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis'
-)
-
-#Show plots together
-patchwork::wrap_plots (projection_plots, ncol = 16)
-
-#Generate a table with the number of each cell type in each sample
-#with row per patient and cell type
-query_composition_sample <- get_Composition(
-  query_obj = mappedSampleQC, 
-  donor_key = 'Sample', 
-  celltype_label = 'predicted_CellType', 
-  mapQC_col = 'mapping_error_QC', 
-  knn_prob_cutoff = NULL, 
-  return_type = 'long')
-
-query_composition_sample
-write.csv(query_composition_sample, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Ivo_Ven_all_cells_mapped_sample.csv", row.names = FALSE)
-#with one row per patient
-query_composition_sample2 <- get_Composition(
-  query_obj = mappedSampleQC, 
-  donor_key = 'Sample', 
-  celltype_label = 'predicted_CellType', 
-  mapQC_col = 'mapping_error_QC', 
-  knn_prob_cutoff = NULL, 
-  return_type = 'count')
-
-query_composition_sample2 
-write.csv(query_composition_sample2, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Ivo_Ven_all_cells_mapped_counts_sampleperrow.csv", row.names = FALSE)
-#with one row per patient and proportion of cells
-query_composition_sample3 <- get_Composition(
-  query_obj = mappedSampleQC, 
-  donor_key = 'Patient', 
-  celltype_label = 'predicted_CellType', 
-  mapQC_col = 'mapping_error_QC', 
-  knn_prob_cutoff = NULL, 
-  return_type = 'proportion')
-
-query_composition_sample3 #no cells from pt15 EOC3 and relapse are included?
-
-#Check if those cells get eliminated by QC
-mappedSample <- predict_CellTypes(
-  query_obj = mappedSample, 
-  ref_obj = ref, 
-  initial_label = 'initial_CellType', # celltype assignments before filtering on mapping QC
-  final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
-) 
-
-#Save mapped Seurat Object
-saveRDS(mappedSampleQC, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240110_Data_mapped_to reference_batchcorrectionbysample")
-#Show Umap
-DimPlot(mappedSample, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
-
-#Predict Pseudotime values by k-nearest neighbours
-batch_key='Sample'
-mappedSample <- predict_Pseudotime(
-  batch_key = batch_key,
-  query_obj = mappedQC,
-  ref_obj = ref,
-  initial_label = 'initial Pseudotime',
-  final_label = 'predicted_Pseudotime')
-FeaturePlot(mappedSample, features = c ('predicted_Pseudotime'))
-
-#Save an Excel file with the mapped annotations for each cell
-save_ProjectionResults(
-  query_obj = mappedSampleQC,
-  celltype_label = 'predicted_CellType',
-  celltype_KNNprob_label = 'predicted_CellType_prob',
-  pseudotime_label = 'predicted_Pseudotime',
-  file_name = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IvoVen_data_projected_labeled_batchcorrectionbysample.csv'
-)
-
-#Visualize projection density
-#Set each condition to be visualized individually
-batch_key <- 'Sample'
-projection_plots <- plot_Projection_byDonor(
-  query_obj = mapped, 
-  batch_key = batch_key, 
-  ref_obj = ref, 
-  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
-  downsample_reference = TRUE, 
-  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
-  query_point_size = 0.2,   # adjust size of query cells based on # of cells
-  saveplot = TRUE, 
-  save_folder = '/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis'
-)
-
-#Show plots together
-patchwork::wrap_plots (projection_plots, ncol = 16)
-
+#Optional
 #Project haematopoietic pseudotime
 query <- predict_Pseudotime(
   query_obj = mappedQC, 
@@ -287,7 +184,7 @@ p
 
 curl::curl_download('https://raw.githubusercontent.com/andygxzeng/BoneMarrowMap_Extras/main/AML_CellType_Genesets.gmt', 
                     destfile = paste0(projection_path, 'AML_CellType_Genesets.gmt'))
-AMLgenesets <- load_Genesets_gmt('/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/AML_CellType_Genesets.gmt')
+AMLgenesets <- load_Genesets_gmt('data/AML_CellType_Genesets.gmt')
 AMLgenesets %>% summary()
 query <- score_Genesets_AUCell(mappedQC, genesets = AMLgenesets, nbatches = 1, ncores = 10, output = 'metadata')
 query@meta.data

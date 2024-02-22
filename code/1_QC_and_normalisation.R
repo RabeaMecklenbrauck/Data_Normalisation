@@ -13,8 +13,8 @@ library(scater)
 
 
 ####START NEW SCE CREATION
-transcriptome_indexes_merged <- readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240109_QC/0_transcriptome_indexes.rds")
-matrix <- readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240109_QC/0_matrix_reformatted.rds")
+transcriptome_indexes_merged <- readRDS("/data/0_transcriptome_indexes.rds")
+matrix <- readRDS("data/0_matrix_reformatted.rds")
 
 df <- data.frame(cell_id = colnames(matrix)) %>%
   mutate(n = row_number()) %>%
@@ -45,12 +45,11 @@ sce <- addPerCellQCMetrics(sce, subsets=list(Mt=mito))
 
 metrics <- sce@colData %>% 
   as.data.frame() %>% 
-  write_csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_QC_metrics.csv")
+  write_csv("results/IVO_VEN_REL_QC_metrics.csv")
 ??plotColData
 plot <- plotColData(sce, x="Sample", y="detected") + ggtitle("Detected features") # way to plot directly for SCE object
 plot + geom_hline(yintercept = 2000, linetype = "dashed", color = "red", size = 2)
-print(plot)
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_detected_per_sample.pdf", sep = ""), device = "pdf", width = 15)
+print("results/IVO_VEN_REL_detected_per_sample.pdf", sep = ""), device = "pdf", width = 15)
 
 # Summarize QC metrics
 
@@ -61,7 +60,7 @@ summary <- metrics %>%
             Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
             Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) 
 %>% 
-  write_csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_QC_average_per_sample.csv")
+  write_csv("results/IVO_VEN_REL_QC_average_per_sample.csv")
 
 summary <- metrics %>% 
   group_by(Patient) %>% 
@@ -70,7 +69,7 @@ summary <- metrics %>%
             Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
             Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) 
 %>% 
-  write_csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_QC_average_per_patient.csv")
+  write_csv("results/IVO_VEN_REL_QC_average_per_patient.csv")
 summary<-metrics %>% 
   group_by(Sample) %>%
   summarize (SD_genes_detected_per_cell = sd(detected),
@@ -78,26 +77,26 @@ summary<-metrics %>%
              SD_mito_perc_per_cell = sd(subsets_Mt_percent),
              SD_ERCC_perc_per_cell = sd(altexps_ERCC_percent)) 
 %>% 
-  write_csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_QC_sd_per_sample.csv")
+  write_csv("results/IVO_VEN_REL_QC_sd_per_sample.csv")
 
 # Plot QC metrics to get an idea
 
 ggplot(metrics, aes(x=Sample, y=detected)) +
   geom_boxplot() +
   theme_cowplot()
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_detected_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
+ggsave(paste("results/IVO_VEN_REL_detected_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
 
 ggplot(metrics, aes(x=Patient, y=detected)) +
   geom_boxplot() +
   theme_cowplot()
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_detected_per_patient_boxplots.pdf", sep = ""), device = "pdf", width = 10)
+ggsave(paste("results/IVO_VEN_REL_detected_per_patient_boxplots.pdf", sep = ""), device = "pdf", width = 10)
 
 ggplot(metrics, aes(x=Sample, y=subsets_Mt_percent)) +
   geom_boxplot() +
   theme_cowplot() +
   geom_hline(yintercept = 20, linetype = "dashed", color = "red", size = 2)
 
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_MT_percent_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
+ggsave(paste("results/IVO_VEN_REL_MT_percent_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
 
 ggplot(metrics, aes(x=Sample, y = subsets_Mt_percent))+
   geom_violin()+
@@ -113,7 +112,7 @@ ggplot(metrics, aes(x=Sample, y=altexps_ERCC_percent)) +
   theme_cowplot() +
   geom_hline(yintercept = 50, linetype = "dashed", color = "red", size = 2)
   
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_ERCC_percent_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
+ggsave(paste("results/IVO_VEN_REL_ERCC_percent_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
 
 # Check if these are similar per batch - you might need to manually adjust thresholds per patient
 qc.lib <- sce$sum < 25000  # Remove empty wells
@@ -131,7 +130,7 @@ test <- sce@colData %>%
   transform(discard = as.character(discard)) %>% 
   group_by(Sample,discard) %>% 
   summarise(n = n()) %>% 
-  write_csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_QC_pass_depth25000_det2000_ercc50_mt20.csv")
+  write_csv("results/IVO_VEN_REL_QC_pass_depth25000_det2000_ercc50_mt20.csv")
 
 # How many cells are discarded, and why?
 DataFrame(LibSize=sum(qc.lib), NExprs=sum(qc.nexprs),
@@ -144,7 +143,7 @@ sce$discard <- discard # Add discard info to sce
 
 plotColData(sce, x="Sample", y="sum", 
             colour_by="discard") + scale_y_log10() + ggtitle("Total count") + geom_hline(aes(yintercept = 25000), linetype = "longdash", color = "red") 
-ggsave(paste("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/IVO_VEN_REL_depth_per_sample_discard.pdf", sep = ""), device = "pdf", width = 15)
+ggsave(paste("results/IVO_VEN_REL_depth_per_sample_discard.pdf", sep = ""), device = "pdf", width = 15)
 
 plotColData(sce, x="Sample", y="detected", 
             colour_by="discard") + ggtitle("Detected features") + geom_hline(aes(yintercept = 2000), linetype = "longdash", color = "red")
@@ -163,8 +162,8 @@ sce_filtered <- sce[,discard == FALSE]
 dim(sce_filtered)
 
 
-saveRDS(sce_filtered, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/sce_filtered_not_normalised.rds")
-sce_filtered<-readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/1_filtered.rds")
+saveRDS(sce_filtered, file = "/data/sce_filtered_not_normalised.rds") #this can be used if you want to do other form of normalisation
+sce_filtered<-readRDS("/data/1_filtered.rds")
 # SCRAN normalisation #
 # Quick clustering
 remove.packages("Matrix")
@@ -182,8 +181,6 @@ plot(sf.libsize, sf, xlab="Library size factor",
      ylab="Deconvolution size factor", log='xy', pch=16,
      col=as.integer(factor(sce_filtered$Sample)))
 abline(a=0, b=1, col="red")
-
-??logNormCounts
 install.packages("scuttle")
 library(scuttle)
 install.packages("Seurat")

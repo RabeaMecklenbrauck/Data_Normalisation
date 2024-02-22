@@ -1,6 +1,6 @@
 #This script uses the normalised data and performs DEA (DeSeq2) and fgsea
 #Open the annotated Seurat object
-df<-readRDS("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/240110_Mapping_to_reference/Seurat_obj_CNA_referenceannotations.rds")
+df<-readRDS("data/04_Seurat_obj_CNA_referenceannotations.rds")
 
 #Create a subset for patient 11 BL and REL
 pt11<-subset(x=df, subset=Patient=='pt11')
@@ -15,6 +15,8 @@ table(data11$dominant, data11$clone.y, data11$Sample)
 #Add metadata back to Seurat object
 pt11<-AddMetaData(object = pt11, metadata = data11, col.name = 'dominant')
 pt11_BL_REL<-subset(x=pt11, Sample %in% c("pt11-BL","pt11-REL"))
+
+#####DEA in LMPP
 ##Create a subset with only dominant population which is LMPP in this case
 pt11_BL_REL<-subset(x=pt11_BL_REL, subset=predicted_CellType=='LMPP')
 ##From this subset select the dominant clones
@@ -106,14 +108,14 @@ res_tbl_all <-res_all%>%
   as_tibble()
 res_tbl_all
 #Save the table
-write.csv(res_tbl_all,"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein.csv" )
+write.csv(res_tbl_all,"/results/DEA_pt11_LMPP.csv" )
 
 #Filter for only significant Genes
 #Set threshold
 padj_cutoff <- 0.05
 #Subset for signifcant results 
 sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
-write.csv(sig_res_all, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv")
+write.csv(sig_res_all, "results/DEA_pt11_LMPP_padj.csv")
 
 
 #Volcano Plot
@@ -135,7 +137,7 @@ options(max.print = .Machine$integer.max, scipen = 999, stringsAsFactors = F, dp
 # Set seed
 set.seed(123456)
 # Set project library
-.libPaths("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation")
+.libPaths("data")
 # Loading relevant libraries 
 install.packages("tidyverse")
 install.packages("RColorBrewer")
@@ -145,9 +147,9 @@ library(RColorBrewer) # for a colourful plot
 library(fgsea)
 # Set relevant paths
 list.files()
-bg_path <- "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/"
-out_path <- "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation"
-in_path<-"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation"
+bg_path <- "data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/"
+out_path <- "results"
+in_path<-"data"
 
 # Functions ===================================================
 ## Function: Adjacency matrix to list -------------------------
@@ -191,17 +193,18 @@ prepare_gmt <- function(gmt_file, genes_in_data, savefile = FALSE){
 # Analysis ====================================================
 ## 1. Read in data -----------------------------------------------------------
 list.files(in_path)
-df_new <- read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv", row.names = 1)
+df <- read.csv("results/DEA_pt11_LMPP_padj.csv", row.names = 1)
 ## 2. Prepare background genes #leave this out if already done -----------------------------------------------
 # Download gene sets .gmt files
 #https://www.gsea-msigdb.org/gsea/msigdb/collections.jsp
+#Or use the files in the data folder on OneDrive "reference gene sets"
 # For GSEA
 # Filter out the gmt files for KEGG, Reactome and GOBP
 my_genes <- df_new$gene
 list.files(bg_path)
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
-#according to this list KEGG = [13], GO = [53], reactome = [17]
+#Check which filnumber the list you want to compare with has, according to this list KEGG = [13], GO = [53], reactome = [17]
 bg_genes <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
 
 #Prepare ranking of your DF gene
@@ -238,7 +241,7 @@ GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
                  nproc = 1) # for parallelisation
 #Check whether it worked
 head(GSEAres)
-write_csv(GSEAres, "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_LMPP_pt11_spikein_REACTOME.csv")
+write_csv(GSEAres, "results/GSEA_LMPP_REACTOME.csv")
 
 #Order by pvalue
 head(GSEAres[order(pval),])
@@ -253,8 +256,8 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
 
 #Save
 ## 5. Save the results -----------------------------------------------
-saveRDS(GSEAres, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/240221GSEA_pt11_BL_REL_LMPP_GO_spikein.rds")
-data.table::fwrite(GSEAres, file ="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/240221_GSEA_pt11_BL_REL_LMPP_spikein_GO.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_LMPP_GO.rds")
+data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_GO.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
 
 ######GO pathways
@@ -272,7 +275,7 @@ GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
                  nproc = 1) # for parallelisation
 #Check whether it worked
 head(GSEAres)
-write_csv(GSEAres,"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/240220_GSEA_pt11_LMPP_spikein_GO.csv")
+write_csv(GSEAres,"results/GSEA_pt11_LMPP_GO.csv")
 
 #Order by pvalue
 head(GSEAres[order(pval),])
@@ -285,12 +288,13 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
                rankings) + 
   labs(title = head(GSEAres[order(padj), ], 1)$pathway)
 #Save
-saveRDS(GSEAres, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO.rds")
-data.table::fwrite(GSEAres, file ="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_LMPP_GO.rds")
+data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_GO.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
 
+#That would be the code if we excluded the mt genes
 #Run GSEA excluding mitochondrial genes
-df <- read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv", row.names = 1)
+df <- read.csv("results/DEA_pt11_LMPP_padj.csv", row.names = 1)
 df_new<-df[!grepl("MT-", df$gene),]
 rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$pvalue)) #use signed p values as preferred
 names(rankings)<-df_new$gene
@@ -313,7 +317,7 @@ GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
                  nproc = 1) # for parallelisation
 #Check whether it worked
 head(GSEAres)
-write_csv(GSEAres,"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/240220_GSEA_pt11_LMPP_spikein_noMt_GO.csv")
+write_csv(GSEAres,"results/GSEA_pt11_LMPP_noMt_GO.csv")
 
 #Order by pvalue
 head(GSEAres[order(pval),])
@@ -326,6 +330,6 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
                rankings) + 
   labs(title = head(GSEAres[order(padj), ], 1)$pathway)
 
-saveRDS(GSEAres, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMt.rds")
-data.table::fwrite(GSEAres, file ="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMT.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_LMPP_GO_noMt.rds")
+data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_GO_noMT.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
