@@ -8,7 +8,7 @@ library(singleCellTK)
 library(scuttle)
 library(scater)
 
-remotes::install_version("Matrix", version = "1.6-1.1") 
+# remotes::install_version("Matrix", version = "1.6-1.1") 
 
 
 
