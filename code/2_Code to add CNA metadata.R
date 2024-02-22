@@ -7,7 +7,7 @@ install.packages("tidyverse")
 library(tibble)
 
 #Load Seurat-object
-obj<-readRDS("/Users/rabeamecklenbrauck/Downloads/2_lognorm_seurat.rds")
+obj<-readRDS("data/2_lognorm_seurat.rds")
 
 #Load the files with correct clone annotation
 pt4_annotations<-read.csv("data/Excel files with final clone annotations/pt4_FINAL_CNA_SNV_clones.csv")
