@@ -45,7 +45,7 @@ p2 <- FeaturePlot(ReferenceSeuratObj, reduction = 'umap', features = 'Pseudotime
 p1 + p2
 
 #Load the Seurat object which you want to map to the reference
-obj_new <- readRDS("data/Seurat_CloneswithCNA.rds")
+obj_new <- readRDS("data/3_Seurat_CloneswithCNA.rds")
 
 #Correct for a batch effect
 #in this case I would correct for Patient
