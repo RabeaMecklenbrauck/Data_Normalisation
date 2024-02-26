@@ -1,0 +1,15 @@
+EC                      Transcriptomic information of endothelial
+                        cells.
+GOBar                   Z-score coloured barplot.
+GOBubble                Bubble plot.
+GOChord                 Displays the relationship between genes and
+                        terms.
+GOCircle                Circular visualization of the results of a
+                        functional analysis.
+GOCluster               Circular dendrogram.
+GOHeat                  Displays heatmap of the relationship between
+                        genes and terms.
+GOVenn                  Venn diagram of differentially expressed genes.
+chord_dat               Creates a binary matrix.
+circle_dat              Creates a plotting object.
+reduce_overlap          Eliminates redundant terms.
