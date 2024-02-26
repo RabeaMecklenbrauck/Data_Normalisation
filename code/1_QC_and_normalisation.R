@@ -13,12 +13,12 @@ library(scater)
 
 
 ####START NEW SCE CREATION
-transcriptome_indexes_merged <- readRDS("/data/0_transcriptome_indexes.rds")
+transcriptome_indexes_merged <- readRDS("data/0_transcriptome_indexes.rds")
 matrix <- readRDS("data/0_matrix_reformatted.rds")
 
 df <- data.frame(cell_id = colnames(matrix)) %>%
   mutate(n = row_number()) %>%
-  left_join(transcriptome_indexes_merged[, c("cell_id", "Sort", "Plate", "Sample", "Patient", "Population", "clone", "OligodT_barcode_plate", "Sample_well")], by = "cell_id") %>%
+  left_join(transcriptome_indexes_merged[, c("cell_id", "Sort", "Plate", "Sample", "Population", "clone", "OligodT_barcode_plate", "Sample_well")], by = "cell_id") %>%
   column_to_rownames("cell_id") # this generates the metadata that will be used for SCE object generation
 
 # Make sce with reformatted matrix
@@ -46,10 +46,9 @@ sce <- addPerCellQCMetrics(sce, subsets=list(Mt=mito))
 metrics <- sce@colData %>% 
   as.data.frame() %>% 
   write_csv("results/IVO_VEN_REL_QC_metrics.csv")
-??plotColData
 plot <- plotColData(sce, x="Sample", y="detected") + ggtitle("Detected features") # way to plot directly for SCE object
 plot + geom_hline(yintercept = 2000, linetype = "dashed", color = "red", size = 2)
-print("results/IVO_VEN_REL_detected_per_sample.pdf", sep = ""), device = "pdf", width = 15)
+print("results/IVO_VEN_REL_detected_per_sample.pdf", sep = "", device = "pdf", width = 15)
 
 # Summarize QC metrics
 
@@ -58,25 +57,22 @@ summary <- metrics %>%
   summarize(Mean_genes_detected_per_cell = mean(detected),
             Mean_seq_depth_per_cell = mean(sum),
             Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
-            Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) 
-%>% 
-  write_csv("results/IVO_VEN_REL_QC_average_per_sample.csv")
+            Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) %>%
+write_csv("results/IVO_VEN_REL_QC_average_per_sample.csv")
 
 summary <- metrics %>% 
   group_by(Patient) %>% 
   summarize(Mean_genes_detected_per_cell = mean(detected),
             Mean_seq_depth_per_cell = mean(sum),
             Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
-            Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) 
-%>% 
+            Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) %>%
   write_csv("results/IVO_VEN_REL_QC_average_per_patient.csv")
 summary<-metrics %>% 
   group_by(Sample) %>%
   summarize (SD_genes_detected_per_cell = sd(detected),
              SD_seq_depth_per_cell = sd(sum),
              SD_mito_perc_per_cell = sd(subsets_Mt_percent),
-             SD_ERCC_perc_per_cell = sd(altexps_ERCC_percent)) 
-%>% 
+             SD_ERCC_perc_per_cell = sd(altexps_ERCC_percent)) %>% 
   write_csv("results/IVO_VEN_REL_QC_sd_per_sample.csv")
 
 # Plot QC metrics to get an idea
