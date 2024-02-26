@@ -1,9 +1,9 @@
 #Load packages
-install.packages("Seurat")
-install.packages("SeuratObject")
-install.packages("readxl")
-install.packages("dplyr")
-install.packages("tidyverse")
+library("Seurat")
+library("SeuratObject")
+library("readxl")
+library("dplyr")
+library("tidyverse")
 library(tibble)
 
 #Load Seurat-object
@@ -83,7 +83,7 @@ write.csv(combined_metadata, "results/Metadata_combined.csv")
 combined_metadata<-read.csv("results/Metadata_combined.csv")
 sum(is.na(combined_metadata$clone.y))
 new_clones_meta<-combined_metadata[c("clone.y", "cellID")]
-)
+
 
 #Add metadata with CNA annotations
 combined_metadata<-read.csv("results/Metadata_combined.csv")
@@ -93,4 +93,4 @@ library(tibble)
 new_clones_meta <- new_clones_meta %>% remove_rownames %>% column_to_rownames(var="cellID") 
 obj<-AddMetaData(object=obj, new_clones_meta, col.name = 'clone.y')
 
-writeRDS(obj, "/data/3_Seurat_CloneswithCNA.rds")
+saveRDS(obj, "data/3_Seurat_CloneswithCNA.rds")

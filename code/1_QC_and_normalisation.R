@@ -7,8 +7,7 @@ library(cowplot)
 library(singleCellTK)
 library(scuttle)
 library(scater)
-
-# remotes::install_version("Matrix", version = "1.6-1.1") 
+remotes::install_version("Matrix", version = "1.6-1.1") 
 
 
 
@@ -60,13 +59,13 @@ summary <- metrics %>%
             Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) %>%
 write_csv("results/IVO_VEN_REL_QC_average_per_sample.csv")
 
-summary <- metrics %>% 
-  group_by(Patient) %>% 
-  summarize(Mean_genes_detected_per_cell = mean(detected),
-            Mean_seq_depth_per_cell = mean(sum),
-            Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
-            Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) %>%
-  write_csv("results/IVO_VEN_REL_QC_average_per_patient.csv")
+# summary <- metrics %>% 
+#   group_by(Patient) %>% 
+#   summarize(Mean_genes_detected_per_cell = mean(detected),
+#             Mean_seq_depth_per_cell = mean(sum),
+#             Mean_mito_perc_per_cell = mean(subsets_Mt_percent),
+#             Mean_ERCC_perc_per_cell = mean(altexps_ERCC_percent)) %>%
+#   write_csv("results/IVO_VEN_REL_QC_average_per_patient.csv")
 summary<-metrics %>% 
   group_by(Sample) %>%
   summarize (SD_genes_detected_per_cell = sd(detected),
@@ -82,10 +81,10 @@ ggplot(metrics, aes(x=Sample, y=detected)) +
   theme_cowplot()
 ggsave(paste("results/IVO_VEN_REL_detected_per_sample_boxplots.pdf", sep = ""), device = "pdf", width = 15)
 
-ggplot(metrics, aes(x=Patient, y=detected)) +
-  geom_boxplot() +
-  theme_cowplot()
-ggsave(paste("results/IVO_VEN_REL_detected_per_patient_boxplots.pdf", sep = ""), device = "pdf", width = 10)
+#ggplot(metrics, aes(x=Patient, y=detected)) +
+  #theme_cowplot()
+ # geom_boxplot() +
+#ggsave(paste("results/IVO_VEN_REL_detected_per_patient_boxplots.pdf", sep = ""), device = "pdf", width = 10)
 
 ggplot(metrics, aes(x=Sample, y=subsets_Mt_percent)) +
   geom_boxplot() +
@@ -158,15 +157,15 @@ sce_filtered <- sce[,discard == FALSE]
 dim(sce_filtered)
 
 
-saveRDS(sce_filtered, file = "/data/sce_filtered_not_normalised.rds") #this can be used if you want to do other form of normalisation
-sce_filtered<-readRDS("/data/1_filtered.rds")
+saveRDS(sce_filtered, file = "data/sce_filtered_not_normalised.rds") #this can be used if you want to do other form of normalisation
+sce_filtered<-readRDS("data/1_filtered.rds")
 # SCRAN normalisation #
 # Quick clustering
-remove.packages("Matrix")
-remove.packages("Seurat")
+
 remotes::install_version("Matrix", version = "1.6-1.1") 
 library(Matrix)
 qclust<- scran::quickCluster(sce_filtered,)
+#Maybe restart and reload packages, it might work...
 # Size factors
 sf.libsize <- librarySizeFactors(sce_filtered)
 sf <- scran::calculateSumFactors(sce_filtered, clusters = qclust)
@@ -193,20 +192,29 @@ sce_filtered <- logNormCounts(sce_filtered, size_factors=ercc.sf.libsize)
 sce_filtered$sf <- Matrix::colSums(counts(sce_filtered))
 
 sce_filtered <- swapAltExp(sce_filtered, "gene")
+saveRDS(sce_filtered, file = "data/sce_filtered.rds") #this can be used if you want to do other form of normalisation
+
+#SeuratObject is not compatible with MATRIX version 1.6.1, one solution would be to save the sce and restart 
+sce_filtered<-readRDS("data/sce_filtered.rds")
 
 library(Seurat)
+library(SeuratObject)
 
 obj <- as.Seurat(sce_filtered, counts = "counts") # converting the filtered and normalized sce to Seurat object
+#Ignore the warning
 
 DefaultAssay(obj) <- "gene"
 
-saveRDS(obj, file = "processed/2_lognorm_seurat.rds")
+saveRDS(obj, file = "data/2_lognorm_seurat.rds")
 
 ### Scatterplots
 
 # Extract Seurat metadata for plotting in ggplot
 
 metadata <- obj@meta.data
+#If you restarted reload ggplot
+library(ggplot2)
+library(cowplot)
 
 p1 <- ggplot(metadata, aes(nCount_gene, nFeature_gene, colour = Patient))+
   geom_point(alpha = 0.6, size = 0.5)+

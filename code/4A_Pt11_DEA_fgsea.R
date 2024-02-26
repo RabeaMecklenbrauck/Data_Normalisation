@@ -2,7 +2,7 @@
 #Open the annotated Seurat object
 df<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
 
-#Create a subset for patient 11 BL and REL
+#Create a subset for patient 11
 pt11<-subset(x=df, subset=Patient=='pt11')
 #Extract metadata
 data11<-pt11@meta.data

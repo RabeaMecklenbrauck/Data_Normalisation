@@ -21,6 +21,7 @@ library(BoneMarrowMap)
 projection_path = 'results/'
 #Extract metadata'
 
+###the next steps take a while, 
 # Download Bone Marrow Reference - 344 Mb
 curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_SymphonyRef.rds', 
                     destfile = paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
@@ -48,8 +49,8 @@ p1 + p2
 obj_new <- readRDS("data/3_Seurat_CloneswithCNA.rds")
 
 #Correct for a batch effect
-#in this case I would correct for Patient
-batchvar<-'Patient'
+#in this case I would correct for Sample
+batchvar<-'Sample'
 
 #Map the data, mapping done using Symphony (Kang et al, 2021)
 mapped <- map_Query(
@@ -78,7 +79,7 @@ mappedQC <- predict_CellTypes(
   final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
 ) 
 
-#Save mapped Seurat Object ore continue to add pseudotime as well
+#Save mapped Seurat Object or continue to add pseudotime as well
 saveRDS(mappedQC, "data/4_Seurat_obj_CNA_referenceannotations.rds")
 #Show Umap
 DimPlot(mappedQC, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
