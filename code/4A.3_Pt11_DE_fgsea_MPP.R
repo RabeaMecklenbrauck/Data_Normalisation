@@ -9,13 +9,13 @@ pt11<-subset(x=df, subset=Patient=='pt11')
 data11<-pt11@meta.data
 #Create variable marking the dominant clone at BL and REL
 data11<-mutate(data11, dominant = if_else(
-  Sample == 'pt11-BL'&clone.y %in% c("NDI", "NDIN")|
-    Sample == 'pt11-REL' & clone.y == 'NDINF', "1","0"))
+  pt_status == 'pt11 BL'&clone.y %in% c("NDI", "NDIN")|
+    pt_status == 'pt11 REL' & clone.y == 'NDINF', "1","0"))
 #Check whether it worked
 table(data11$dominant, data11$clone.y, data11$Sample)
 #Add metadata back to Seurat object
 pt11<-AddMetaData(object = pt11, metadata = data11, col.name = 'dominant')
-pt11_BL_REL<-subset(x=pt11, Sample %in% c("pt11-BL","pt11-REL"))
+pt11_BL_REL<-subset(x=pt11, pt_status %in% c("pt11 BL","pt11 REL"))
 ##Create a subset with only dominant population which is MPP in this case, I decided to combine bith MPP populations
 pt11_BL_REL<-subset(x=pt11_BL_REL, subset=predicted_CellType %in% c("MPP-MkEry","MPP-MyLy"))
 ##From this subset select the dominant clones
@@ -24,7 +24,7 @@ pt11_BL_REL <- subset(x=pt11_BL_REL, dominant == "1")
 table(pt11_BL_REL$predicted_CellType)
 table(pt11_BL_REL$dominant)
 
-#This leaves you with 143 MPP-MkEry and 54 MPP-MyLy
+#This leaves you with 137 MPP-MkEry and 53 MPP-MyLy
 
 ########DE####################
 #Load libraries
