@@ -28,6 +28,9 @@ plate_indexes <- rbind(pt4, pt9, pt11, pt14, pt15) %>%
 
 all_cells <- read_csv("data/raw data per patient/metadata_all_cells.csv") # This contains population information for all 14247 wells in which a cell was sorted
 
+all_cells <- all_cells %>%
+  separate(Sample, into = c("Patient", "Sample"), sep = "_") 
+
 all <- left_join(all_cells, plate_indexes, by = "cell_id") # Now we have clone + population information for all cells
 
 all <- all %>% 
@@ -39,8 +42,8 @@ all <- all %>%
 all$clone <- NULL
 
 all <- all %>% 
-  mutate(new_clone = replace_na(new_clone, "Undetermined")) %>% 
-  rename(clone = new_clone) %>% 
+  dplyr::mutate(new_clone = replace_na(new_clone, "Undetermined")) %>% 
+  dplyr::rename(clone = new_clone) %>% 
   write_csv("results/IVO_VEN_Relapse_all_cells_clone_index.csv")
 
 # Now we have to add A1_A2 and A3_A4 info for each plate (based on sample sheets made by Bilyana)
@@ -56,12 +59,14 @@ all <- all %>%
 
 all$Sample <- gsub('_', '-', all$Sample) # Some samples had underscores - we convert them all to dashes
 
-write_csv(plate_indexes, "results/IVO_VEN_REL_all_cells_clone_index_oligodT.csv")
+write_csv(all, "results/IVO_VEN_REL_all_cells_clone_index_oligodT.csv")
 
 # Now, we have everything ready for matrix reformatting! 
 
 
-plate_indexes <- read_csv("data/raw data per patient/IVO_VEN_REL_all_cells_clone_index_oligodT.csv")
+plate_indexes <- read_csv("results/IVO_VEN_REL_all_cells_clone_index_oligodT.csv")
+
+plate_indexes <- all
 
 # Import list of OligodT barcodes
 oligodt_barcodes <- read_excel("data/raw data per patient/oligodT_384_barcodes.xlsx") %>%
