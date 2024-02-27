@@ -16,12 +16,10 @@ devtools::install_github('andygxzeng/BoneMarrowMap', force = TRUE)
 library(BoneMarrowMap)
 
 #Download the reference 
-
 # Set directory to store projection reference files
 projection_path = 'results/'
-#Extract metadata'
 
-###the next steps take a while, 
+###the next steps take a while...
 # Download Bone Marrow Reference - 344 Mb
 curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_SymphonyRef.rds', 
                     destfile = paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
@@ -49,10 +47,15 @@ p1 + p2
 obj_new <- readRDS("data/3_Seurat_CloneswithCNA.rds")
 
 #Correct for a batch effect
-#in this case I would correct for Sample
-batchvar<-'Sample'
+#in this case I would correct for timepoint
+batchvar<-'pat_state'
 
 #Map the data, mapping done using Symphony (Kang et al, 2021)
+mapped <- map_Query(
+  exp_query = obj_new@assays$gene@counts, 
+  metadata_query = obj_new@meta.data,
+  ref_obj = ref
+)
 mapped <- map_Query(
   exp_query = obj_new@assays$gene@counts, 
   metadata_query = obj_new@meta.data,

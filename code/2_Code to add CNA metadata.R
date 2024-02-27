@@ -92,5 +92,8 @@ new_clones_meta<-combined_metadata[c("clone.y", "cellID")]
 library(tibble)
 new_clones_meta <- new_clones_meta %>% remove_rownames %>% column_to_rownames(var="cellID") 
 obj<-AddMetaData(object=obj, new_clones_meta, col.name = 'clone.y')
+metadata<-obj@meta.data
+
+
 
 saveRDS(obj, "data/3_Seurat_CloneswithCNA.rds")

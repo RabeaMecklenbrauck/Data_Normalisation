@@ -28,8 +28,14 @@ plate_indexes <- rbind(pt4, pt9, pt11, pt14, pt15) %>%
 
 all_cells <- read_csv("data/raw data per patient/metadata_all_cells.csv") # This contains population information for all 14247 wells in which a cell was sorted
 
+
 all_cells <- all_cells %>%
-  separate(Sample, into = c("Patient", "Sample"), sep = "_") 
+  separate(Sample, into = c("Patient", "Sample"), sep = "-") 
+table(all_cells$Patient)
+
+#I still need a column with pt and sample, so I'll create that now
+all_cells$pt_status <- paste(all_cells$Patient,all_cells$Sample)
+table(all_cells$pt_status)
 
 all <- left_join(all_cells, plate_indexes, by = "cell_id") # Now we have clone + population information for all cells
 

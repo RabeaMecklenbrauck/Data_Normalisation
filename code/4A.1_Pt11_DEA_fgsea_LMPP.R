@@ -2,6 +2,7 @@
 #Open the annotated Seurat object
 df<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
 library(tidyverse)
+df@meta.data
 
 #Create a subset for patient 11 BL and REL
 pt11<-subset(x=df, subset=Patient=='pt11')
@@ -9,13 +10,13 @@ pt11<-subset(x=df, subset=Patient=='pt11')
 data11<-pt11@meta.data
 #Create variable marking the dominant clone at BL and REL
 data11<-mutate(data11, dominant = if_else(
-  Sample == 'pt11-BL'&clone.y %in% c("NDI", "NDIN")|
-    Sample == 'pt11-REL' & clone.y == 'NDINF', "1","0"))
+  pt_status == 'pt11 BL'&clone.y %in% c("NDI", "NDIN")|
+    pt_status == 'pt11 REL' & clone.y == 'NDINF', "1","0"))
 #Check whether it worked
 table(data11$dominant, data11$clone.y, data11$Sample)
 #Add metadata back to Seurat object
 pt11<-AddMetaData(object = pt11, metadata = data11, col.name = 'dominant')
-pt11_BL_REL<-subset(x=pt11, Sample %in% c("pt11-BL","pt11-REL"))
+pt11_BL_REL<-subset(x=pt11, pt_status %in% c("pt11 BL","pt11 REL"))
 ##Create a subset with only dominant population which is LMPP in this case
 pt11_BL_REL<-subset(x=pt11_BL_REL, subset=predicted_CellType=='LMPP')
 ##From this subset select the dominant clones
@@ -24,7 +25,8 @@ pt11_BL_REL <- subset(x=pt11_BL_REL, dominant == "1")
 table(pt11_BL_REL$predicted_CellType)
 table(pt11_BL_REL$dominant)
 
-#This leaves you with 491 LMPPs 
+#This leaves you with 524 LMPPs 
+
 
 ########DE####################
 #Load libraries
@@ -33,6 +35,7 @@ library(Seurat)
 library(DESeq2)
 library(tidyverse)
 library(RColorBrewer)
+
 
 # pseudo-bulk workflow -----------------
 # Acquiring necessary metrics for aggregation across cells in a sample
@@ -324,7 +327,7 @@ data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_KEGG.tsv" , sep
 
 
 #Run GSEA excluding mitochondrial genes
-df <- read.csv("/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv", row.names = 1)
+df <- read.csv("results/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv", row.names = 1)
 df_new<-df[!grepl("MT-", df$gene),]
 rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$pvalue)) #use signed p values as preferred
 names(rankings)<-df_new$gene
@@ -347,7 +350,7 @@ GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
                  nproc = 1) # for parallelisation
 #Check whether it worked
 head(GSEAres)
-write_csv(GSEAres,"/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/240220_GSEA_pt11_LMPP_spikein_noMt_GO.csv")
+write_csv(GSEAres,"results/240220_Comparison_normalisation/240220_GSEA_pt11_LMPP_spikein_noMt_GO.csv")
 
 #Order by pvalue
 head(GSEAres[order(pval),])
@@ -360,8 +363,8 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
                rankings) + 
   labs(title = head(GSEAres[order(padj), ], 1)$pathway)
 
-saveRDS(GSEAres, file = "/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMt.rds")
-data.table::fwrite(GSEAres, file ="/Users/rabeamecklenbrauck/Library/CloudStorage/OneDrive-Nexus365/Ivo-Ven-Project/Transcriptome analysis/Data_Normalisation/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMT.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres, file = "results/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMt.rds")
+data.table::fwrite(GSEAres, file ="results/240220_Comparison_normalisation/GSEA_pt11_BL_REL_LMPP_spikein_GO_noMT.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
-
+#For the other cell types continue with the next code, clean the environment
 
