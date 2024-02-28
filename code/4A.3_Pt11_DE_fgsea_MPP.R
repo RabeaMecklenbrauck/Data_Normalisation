@@ -319,3 +319,4 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
 #Save
 saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_MPP_KEGG.rds")
 data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
+

@@ -203,9 +203,6 @@ list.files(bg_path)
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69]
-#start with KEGG pathways
-bg_genes <- prepare_gmt(gmt_files[11], my_genes, savefile = FALSE)
-
 #Prepare ranking of your DF gene
 rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$padj)) #use signed p values as preferred
 names(rankings)<-df_new$gene
@@ -321,11 +318,11 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
 saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_earlyGMP_wiki.rds")
 data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_earlyGMP_wiki.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
-######misigdb pathways
+######KEGG pathways
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 ##according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69]
-bg_genes <- prepare_gmt(gmt_files[69], my_genes, savefile = FALSE)
+bg_genes <- prepare_gmt(gmt_files[11], my_genes, savefile = FALSE)
 
 #Run GSEA
 GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
@@ -349,5 +346,5 @@ plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
                rankings) + 
   labs(title = head(GSEAres[order(padj), ], 1)$pathway)
 #Save
-saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_earlyGMP_misidbg.rds")
-data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_earlyGMP_misidbg.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_earlyGMP_KEGG.rds")
+data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_earlyGMP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
