@@ -2,7 +2,6 @@
 #Open the annotated Seurat object
 df<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
 library(tidyverse)
-df@meta.data
 
 #Create a subset for patient 11 BL and REL
 pt11<-subset(x=df, subset=Patient=='pt11')
@@ -41,7 +40,6 @@ library(RColorBrewer)
 # Acquiring necessary metrics for aggregation across cells in a sample
 # 1. counts matrix - sample level
 # a0counts aggregate to sample level
-View(pt11_BL_REL@meta.data)
 pt11_BL_REL$samples <- paste0(pt11_BL_REL$Sample, pt11_BL_REL$Sample_well)
 
 DefaultAssay(pt11_BL_REL)
@@ -83,6 +81,9 @@ colData_all <- colData_all %>%
 
 # perform DESeq2 
 # 1.Create DESeq2 object   
+
+colData_all$condition <- factor(colData_all$condition, levels = c("baseline", "relapse"))
+
 dds_all <- DESeqDataSetFromMatrix(countData = cts.t.modified,
                                   colData = colData_all,
                                   design = ~ condition)
@@ -98,8 +99,15 @@ dds_all <- DESeq(dds_all)
 resultsNames(dds_all)
 
 # 5. Generate results object
-res_all <- results(dds_all, contrast = c("condition", 'relapse', 'baseline'))
-res_all
+# res_all <- results(dds_all, contrast = c("condition", 'relapse', 'baseline'))
+res_all <- results(dds_all, name = "condition_relapse_vs_baseline")
+
+res_all <- lfcShrink(dds_all, 
+								 coef = "condition_relapse_vs_baseline",
+								 res=res_all,
+								 type = "apeglm")
+
+
 res_all<-as.data.frame(res_all)
 
 #Visualize the results
@@ -121,7 +129,7 @@ write.csv(sig_res_all, "results/DEA_pt11_LMPP_padj.csv")
 
 
 #Volcano Plot
-devtools::install_github('kevinblighe/EnhancedVolcano')
+# devtools::install_github('kevinblighe/EnhancedVolcano')
 library(EnhancedVolcano)
 #Create a vector where TRUE values denot padj ,0.05 and fold change >1.5
 res_table_thres_all<- res_tbl_all %>% mutate(threshold=padj <0.05 & abs(log2FoldChange)>0.58)
@@ -141,9 +149,6 @@ set.seed(123456)
 # Set project library
 .libPaths("results/")
 # Loading relevant libraries 
-install.packages("tidyverse")
-install.packages("RColorBrewer")
-BiocManager::install("fgsea")
 library(tidyverse) # includes ggplot2, for data visualisation. dplyr, for data manipulation.
 library(RColorBrewer) # for a colourful plot
 library(fgsea)
@@ -205,12 +210,15 @@ my_genes <- df_new$gene
 list.files(bg_path)
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
+
+# TODO FELIX FIX
+
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
 #GO pathways
-bg_genes <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
+bg_genes <- prepare_gmt(gmt_files[52], my_genes, savefile = FALSE)
 
 #Prepare ranking of your DF gene
-rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$padj)) #use signed p values as preferred
+rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$pvalue)) #use signed p values as preferred
 names(rankings)<-df_new$gene
 #Check list
 head(rankings)

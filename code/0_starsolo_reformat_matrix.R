@@ -124,7 +124,7 @@ if(sum(!is.na(transcriptome_indexes_merged$cell_id)) == nrow(transcriptome_index
 ### Reformat the RNA-seq counts to make the reformatted counts matrix ####
 
 # Read in the tsv file with RNA-seq counts: (needs to be loaded from your PC because file too big for github)
-raw_counts_file <- as(Matrix::readMM("/Users/rabeamecklenbrauck/Downloads/matrix.mtx"), "CsparseMatrix") #data is in the raw data file in Ivo_Ven onedrive
+raw_counts_file <- as(Matrix::readMM("data/raw data per patient/matrix.mtx.gz"), "CsparseMatrix") #data is in the raw data file in Ivo_Ven onedrive
 
 # Function for adding cell barcodes and gene names
 format_counts_matrix <- function(matrix, barcodes, features){
