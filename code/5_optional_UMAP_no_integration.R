@@ -6,11 +6,11 @@ library(SeuratObject)
 library(cowplot)
 
 #Read file
-obj <- readRDS("/Users/rabeamecklenbrauck/Downloads/2_lognorm_seurat.rds")
+obj <- readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
 View(obj)
 
 #Check QC
-VlnPlot(obj_new, features = c("nFeature_gene", "nCount_gene"), ncol=2) #mtDNA high cells already excluded
+VlnPlot(obj, features = c("nFeature_gene", "nCount_gene"), ncol=2) #mtDNA high cells already excluded
 
 plot1 <-FeatureScatter(obj, feature1 = "nCount_gene", feature2 = "nFeature_gene")
 plot1
@@ -18,39 +18,39 @@ plot1
 #Normalizing the data -> already done
 
 #Identification of highly variable features
-obj_new<-FindVariableFeatures(obj_new, selection.method = "vst", nfeatures = 2000) #change the number of variable features?
+obj<-FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000) #change the number of variable features?
 top10<-head(VariableFeatures(obj_new), 10)
 plot1<-VariableFeaturePlot(obj_new)
 plot2<-LabelPoints (plot = plot1, points = top10, repel = TRUE)
 plot2
 
 #Scale the data
-all.genes<-rownames (obj_new)
-obj_new<-ScaleData(obj_new, features = all.genes)
+all.genes<-rownames (obj)
+obj<-ScaleData(obj, features = all.genes)
 
 #Linear dimensional reduction
-obj_new<-RunPCA(obj_new, features=VariableFeatures(object = obj_new))
+obj<-RunPCA(obj, features=VariableFeatures(object = obj))
 #Visualize the PCA
-print(obj_new[["pca"]], dims = 1:5, nfeatures =5)
-VizDimLoadings(obj_new, dims = 1:5, reduction = 'pca') &
+print(obj[["pca"]], dims = 1:5, nfeatures =5)
+VizDimLoadings(obj, dims = 1:5, reduction = 'pca') &
   theme (axis.text = element_text(size=5))
-DimPlot(obj_new, reduction = 'pca')+NoLegend()
-DimHeatmap(obj_new, dims = 1:20, cells = 500, balanced = TRUE)
+DimPlot(obj, reduction = 'pca')+NoLegend()
+DimHeatmap(obj, dims = 1:20, cells = 500, balanced = TRUE)
 
 #Dimensionality of the dataset
 ?ElbowPlot
-ElbowPlot(obj_new,ndims=50)
+ElbowPlot(obj,ndims=50)
 
 #Cluster the cells
-obj_new<-FindNeighbors(obj_new, dims = 1:40)
-obj_new<-FindClusters(obj_new, resolution = 1)
+obj<-FindNeighbors(obj, dims = 1:40)
+obj<-FindClusters(obj, resolution = 1)
 
 #Run Umap
-obj_new<-RunUMAP(obj_new, dims = 1:40)
-DimPlot(obj_new, reduction = "umap")
+obj<-RunUMAP(obj, dims = 1:40)
+DimPlot(obj, reduction = "umap")
 
 #Annotate the Umap per patient
-DimPlot(obj_new,label=T, reduction = "umap", group.by="Sample")
+DimPlot(obj,label=T, reduction = "umap", group.by="predicted_CellType")
 
 ##############################################################################
 ##Create Umap for every patient

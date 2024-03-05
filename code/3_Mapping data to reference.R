@@ -48,14 +48,9 @@ obj_new <- readRDS("data/3_Seurat_CloneswithCNA.rds")
 
 #Correct for a batch effect
 #in this case I would correct for timepoint
-batchvar<-'pat_state'
+batchvar<-'pt_status'
 
 #Map the data, mapping done using Symphony (Kang et al, 2021)
-mapped <- map_Query(
-  exp_query = obj_new@assays$gene@counts, 
-  metadata_query = obj_new@meta.data,
-  ref_obj = ref
-)
 mapped <- map_Query(
   exp_query = obj_new@assays$gene@counts, 
   metadata_query = obj_new@meta.data,

@@ -10,15 +10,15 @@ pt9<-subset(x=df, subset=Patient=='pt9')
 data9<-pt9@meta.data
 #Create variable marking the dominant clone at BL and REL
 data9<-mutate(data9, dominant = if_else(
-  Sample == 'pt9-BL'&clone.y %in% c("AI", "AI_5", "AI_5_11")|
-    Sample == 'pt9-REL' & clone.y == 'AISF', "1","0"))
+  pt_status == 'pt9 BL'&clone.y %in% c("AI", "AI_5", "AI_5_11")|
+    pt_status == 'pt9 REL' & clone.y == 'AISF', "1","0"))
 #Check whether it worked
 table(data9$dominant, data9$clone.y, data9$Sample)
 #Add metadata back to Seurat object
 pt9<-AddMetaData(object = pt9, metadata = data9, col.name = 'dominant')
-pt9_BL_REL<-subset(x=pt9, Sample %in% c("pt9-BL","pt9-REL"))
+pt9_BL_REL<-subset(x=pt9, pt_status %in% c("pt9 BL","pt9 REL"))
 #This is the first analysis, so we have to determine the mainly expanded populations first
-table_pt9<-table(pt9_BL_REL$predicted_CellType, pt9_BL_REL$clone.y, pt9_BL_REL$Sample)
+table_pt9<-table(pt9_BL_REL$predicted_CellType, pt9_BL_REL$clone.y, pt9_BL_REL$pt_status)
 write.csv(table_pt9, "results/pt9_clones_per_celltype.csv")
 #According to this table the major clone at BL and at REL is mainly found in LMPP and MPP, as well as a bit in HSC
 #We'll start with LMPP
@@ -30,7 +30,7 @@ pt9_BL_REL <- subset(x=pt9_BL_REL, dominant == "1")
 table(pt9_BL_REL$predicted_CellType)
 table(pt9_BL_REL$dominant)
 
-#This leaves you with 259 LMPPs 
+#This leaves you with 266 LMPPs 
 
 
 ########DE####################
@@ -200,7 +200,7 @@ prepare_gmt <- function(gmt_file, genes_in_data, savefile = FALSE){
 # Analysis ====================================================
 ## 1. Read in data -----------------------------------------------------------
 list.files(in_path)
-df_new <- read.csv("results/DEA_pt_LMPP_padj.csv", row.names = 1)
+df_new <- read.csv("results/DEA_pt9_LMPP_padj.csv", row.names = 1)
 ## 2. Prepare background genes #leave this out if already done -----------------------------------------------
 # Download gene sets .gmt files
 #https://www.gsea-msigdb.org/gsea/msigdb/collections.jsp
@@ -212,7 +212,7 @@ gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
 #GO pathways
-bg_genes <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
+bg_genes_GO <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
 
 #Prepare ranking of your DF gene
 rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$padj)) #use signed p values as preferred
@@ -240,133 +240,171 @@ ggplot(data.frame(gene_symbol = names(rankings)[1:50], ranks = rankings[1:50]), 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 #Run GSEA
-GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
+GSEAres_GO <- fgsea(pathways = bg_genes_GO, # List of gene sets to check
                  stats = rankings,
                  scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
                  minSize = 10,
                  maxSize = 500,
                  nproc = 1) # for parallelisation
 #Check whether it worked
-head(GSEAres)
-write_csv(GSEAres, "results/GSEA_LMPP_pt9_GO.csv")
+head(GSEAres_GO)
+write_csv(GSEAres_GO, "results/GSEA_LMPP_pt9_GO.csv")
 
 #Order by pvalue
-head(GSEAres[order(pval),])
-sum(GSEAres[,padj<0.05])
-sum(GSEAres[,pval<0.01])
+head(GSEAres_GO[order(pval),])
+sum(GSEAres_GO[,padj<0.05])
+sum(GSEAres_GO[,pval<0.01])
 
 
 # plot the most significantly enriched pathway
-plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
+plotEnrichment(bg_genes_GO[[head(GSEAres_GO[order(padj), ], 1)$pathway]],
                rankings) + 
-  labs(title = head(GSEAres[order(padj), ], 1)$pathway)
+  labs(title = head(GSEAres_GO[order(padj), ], 1)$pathway)
 
 #Save
 ## 5. Save the results -----------------------------------------------
 saveRDS(GSEAres, file = "results/GSEA_pt9_BL_REL_LMPP_GO.rds")
 data.table::fwrite(GSEAres, file ="results/GSEA_pt9_BL_REL_LMPP_GO.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
+##6.Visualise
+GSEAres_GO$adjPvalue <- ifelse(GSEAres_GO$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_GO_sig=subset(GSEAres_GO, GSEAres_GO$padj<=0.1)
+ggplot(GSEAres_GO_sig, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="GO pathways Enrichment Score from GSEA (p<0.1)")
+#
 
 ######wiki pathways
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
-bg_genes <- prepare_gmt(gmt_files[21], my_genes, savefile = FALSE)
+bg_genes_wiki <- prepare_gmt(gmt_files[21], my_genes, savefile = FALSE)
 
 #Run GSEA
-GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
+GSEAres_wiki <- fgsea(pathways = bg_genes_wiki, # List of gene sets to check
                  stats = rankings,
                  scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
                  minSize = 10,
                  maxSize = 500,
                  nproc = 1) # for parallelisation
 #Check whether it worked
-head(GSEAres)
-write_csv(GSEAres,"results/GSEA_pt9_LMPP_wiki.csv")
+head(GSEAres_wiki)
+write_csv(GSEAres_wiki,"results/GSEA_pt9_LMPP_wiki.csv")
 
 #Order by pvalue
-head(GSEAres[order(pval),])
-sum(GSEAres[,padj<0.05])
-sum(GSEAres[,pval<0.01])
+head(GSEAres_wiki[order(pval),])
+sum(GSEAres_wiki[,padj<0.05])
+sum(GSEAres_wiki[,pval<0.01])
+GSEA_res_wiki_pval=subset(GSEAres_wiki, GSEAres_wiki$padj<=0.1)
 
 
 # plot the most significantly enriched pathway
-plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
+plotEnrichment(bg_genes_wiki[[head(GSEAres[order(padj), ], 1)$pathway]],
                rankings) + 
   labs(title = head(GSEAres[order(padj), ], 1)$pathway)
 #Save
-saveRDS(GSEAres, file = "results/GSEA_pt9_BL_REL_LMPP_wiki.rds")
-data.table::fwrite(GSEAres, file ="results/GSEA_pt9_BL_REL_LMPP_wiki.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres_wiki, file = "results/GSEA_pt9_BL_REL_LMPP_wiki.rds")
+data.table::fwrite(GSEAres_wiki, file ="results/GSEA_pt9_BL_REL_LMPP_wiki.tsv" , sep = "\t", sep2 = c("", " ", ""))
+
+#Visualise
+GSEA_res_wiki_pval$adjPvalue <- ifelse(GSEA_res_wiki_pval$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+ggplot(GSEA_res_wiki_pval , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Wiki pathways Enrichment Score from GSEA")
 
 ######KEGG pathways
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
-bg_genes <- prepare_gmt(gmt_files[11], my_genes, savefile = FALSE)
+bg_genes_KEGG <- prepare_gmt(gmt_files[11], my_genes, savefile = FALSE)
 
 #Run GSEA
-GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
+GSEAres_KEGG <- fgsea(pathways = bg_genes_KEGG, # List of gene sets to check
                  stats = rankings,
                  scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
                  minSize = 10,
                  maxSize = 500,
                  nproc = 1) # for parallelisation
 #Check whether it worked
-head(GSEAres)
-write_csv(GSEAres,"results/GSEA_pt9_LMPP_KEGG.csv")
+head(GSEAres_KEGG)
+write_csv(GSEAres_KEGG,"results/GSEA_pt9_LMPP_KEGG.csv")
 
 #Order by pvalue
-head(GSEAres[order(pval),])
-sum(GSEAres[,padj<0.05])
-sum(GSEAres[,pval<0.01])
+head(GSEAres_KEGG[order(pval),])
+sum(GSEAres_KEGG[,padj<0.05])
+sum(GSEAres_KEGG[,pval<0.01])
 
 
 # plot the most significantly enriched pathway
-plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
+plotEnrichment(bg_genes[[head(GSEAres_KEGG[order(padj), ], 1)$pathway]],
                rankings) + 
-  labs(title = head(GSEAres[order(padj), ], 1)$pathway)
+  labs(title = head(GSEAres_KEGG[order(padj), ], 1)$pathway)
 #Save
-saveRDS(GSEAres, file = "results/GSEA_pt9_BL_REL_LMPP_KEGG.rds")
-data.table::fwrite(GSEAres, file ="results/GSEA_pt9_BL_REL_LMPP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres_KEGG, file = "results/GSEA_pt9_BL_REL_LMPP_KEGG.rds")
+data.table::fwrite(GSEAres_KEGG, file ="results/GSEA_pt9_BL_REL_LMPP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
-
-
-#Run GSEA excluding mitochondrial genes
-df <- read.csv("results/DEA_pt9_LMPP_spikein_padj.csv", row.names = 1)
-df_new<-df[!grepl("MT-", df$gene),]
-rankings<- sign(df_new$log2FoldChange)*(-log10(df_new$pvalue)) #use signed p values as preferred
-names(rankings)<-df_new$gene
-#Check list
-head(rankings)
-#Sort genes by signed p value
-rankings<-sort(rankings, decreasing= TRUE)
-
+#Visualise
+GSEAres_KEGG$adjPvalue <- ifelse(GSEAres_KEGG$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_KEGG_sig=subset(GSEAres_KEGG, GSEAres_KEGG$padj<=0.5)
+ggplot(GSEAres_KEGG_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="KEGG pathways Enrichment Score from GSEA (p<0.5)")
+######Hallmark pathways
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
-#according to this list KEGG = [13], GO = [53], reactome = [16]
-bg_genes <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
+#according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_HALLMARK <- prepare_gmt(gmt_files[67], my_genes, savefile = FALSE)
 
 #Run GSEA
-GSEAres <- fgsea(pathways = bg_genes, # List of gene sets to check
+GSEAres_HALLMARK <- fgsea(pathways = bg_genes_HALLMARK, # List of gene sets to check
                  stats = rankings,
                  scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
                  minSize = 10,
                  maxSize = 500,
                  nproc = 1) # for parallelisation
 #Check whether it worked
-head(GSEAres)
-write_csv(GSEAres,"results/GSEA_pt9_LMPP_spikein_noMt_GO.csv")
+head(GSEAres_HALLMARK)
+write_csv(GSEAres_HALLMARK,"results/GSEA_pt9_LMPP_Hallmark.csv")
 
 #Order by pvalue
-head(GSEAres[order(pval),])
-sum(GSEAres[,padj<0.05])
-sum(GSEAres[,pval<0.01])
+head(GSEAres_HALLMARK[order(pval),])
+sum(GSEAres_HALLMARK[,padj<0.05])
+sum(GSEAres_HALLMARK[,pval<0.01])
 
 
 # plot the most significantly enriched pathway
-plotEnrichment(bg_genes[[head(GSEAres[order(padj), ], 1)$pathway]],
+plotEnrichment(bg_genes_HALLMARK[[head(GSEAres_HALLMARK[order(padj), ], 1)$pathway]],
                rankings) + 
-  labs(title = head(GSEAres[order(padj), ], 1)$pathway)
+  labs(title = head(GSEAres_HALLMARK[order(padj), ], 1)$pathway)
+#Save
+saveRDS(GSEAres_HALLMARK, file = "results/GSEA_pt9_BL_REL_LMPP_HALLMARK.rds")
+data.table::fwrite(GSEAres_HALLMARK, file ="results/GSEA_pt9_BL_REL_LMPP_HALLMARK.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
-saveRDS(GSEAres, file = "results/GSEA_pt9_BL_REL_LMPP_spikein_GO_noMt.rds")
-data.table::fwrite(GSEAres, file ="results/GSEA_pt9_BL_REL_LMPP_spikein_GO_noMT.tsv" , sep = "\t", sep2 = c("", " ", ""))
+#Visualise
+library(cowplot)
+GSEAres_HALLMARK$adjPvalue <- ifelse(GSEAres_HALLMARK$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_HALLMARK_sig=subset(GSEAres_HALLMARK, GSEAres_HALLMARK$padj<=0.1)
+ggplot(GSEAres_HALLMARK_sig, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Hallmark pathways Enrichment Score from GSEA (p<0.1)")
+

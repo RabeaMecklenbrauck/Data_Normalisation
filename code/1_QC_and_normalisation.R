@@ -204,17 +204,18 @@ saveRDS(sce_filtered, file = "data/sce_filtered_not_normalised_cluster.rds")
 remove.packages("Matrix")
 
 #Restart R
+install.packages("Matrix")
+library(Matrix)
+packageVersion("Matrix") #Should bei 1.6.5 now
 library(tidyverse)
 library(cowplot)
 library(singleCellTK)
 library(scuttle)
 library(scater)
-install.packages("Matrix")
-library(Matrix)
-packageVersion("Matrix") #Should bei 1.6.5 now
+library(Seurat)
 sce_filtered<-readRDS("data/sce_filtered_not_normalised_cluster.rds")
 
-library(Seurat)
+
 
 obj <- Seurat::as.Seurat(sce_filtered, counts = "counts") # converting the filtered and normalized sce to Seurat object
 
