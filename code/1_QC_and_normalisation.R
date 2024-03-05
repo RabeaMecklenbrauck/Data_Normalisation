@@ -160,7 +160,7 @@ dim(sce_filtered)
 saveRDS(sce_filtered, file = "data/sce_filtered_not_normalised.rds") 
 remove.packages("Matrix")
 #Restart R
-remotes::install_version("Matrix", version = "1.6-1.1") 
+remotes::install_version("Matrix", version = "1.6-1.1")
 packageVersion("Matrix") #should be 1.6.1.1
 
 #Open the file saved before
@@ -201,7 +201,7 @@ sce_filtered$sf <- Matrix::colSums(counts(sce_filtered))
 
 sce_filtered <- swapAltExp(sce_filtered, "gene")
 saveRDS(sce_filtered, file = "data/sce_filtered_not_normalised_cluster.rds")
-remove.packages("Matrix")
+# remove.packages("Matrix")
 
 #Restart R
 install.packages("Matrix")
@@ -212,7 +212,13 @@ library(cowplot)
 library(singleCellTK)
 library(scuttle)
 library(scater)
+<<<<<<< HEAD
 library(Seurat)
+=======
+# install.packages("Matrix")
+library(Matrix)
+packageVersion("Matrix") #Should bei 1.6.5 now
+>>>>>>> c2974d323d15c8081c4a1b12651b678a6882e60f
 sce_filtered<-readRDS("data/sce_filtered_not_normalised_cluster.rds")
 
 

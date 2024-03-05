@@ -5,27 +5,23 @@ library(tidyverse)
 library(symphony)
 library(ggpubr)
 library(patchwork)
-#Load other packages not available on CRAN
-if(!require(BiocManager, quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install(c("AUCell", "doMC"))
-if(!require(devtools, quietly = TRUE)) install.packages("devtools")
-devtools::install_github("jaredhuling/jcolors")
-
-#Load the BoneMarrowMap package
-devtools::install_github('andygxzeng/BoneMarrowMap', force = TRUE)
+library(AUCell)
+library(jcolors)
 library(BoneMarrowMap)
+library(RColorBrewer)
+options(Seurat.object.assay.version = "v3")
 
 #Download the reference 
 # Set directory to store projection reference files
-projection_path = 'results/'
+projection_path = 'results/mapping/'
 
 ###the next steps take a while...
 # Download Bone Marrow Reference - 344 Mb
-curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_SymphonyRef.rds', 
-                    destfile = paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
-# Download uwot model file - 221 Mb
-curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_uwot_model.uwot', 
-                    destfile = paste0(projection_path, 'BoneMarrow_RefMap_uwot_model.uwot'))
+# curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_SymphonyRef.rds', 
+#                     destfile = paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
+# # Download uwot model file - 221 Mb
+# curl::curl_download('https://bonemarrowmap.s3.us-east-2.amazonaws.com/BoneMarrow_RefMap_uwot_model.uwot', 
+#                     destfile = paste0(projection_path, 'BoneMarrow_RefMap_uwot_model.uwot'))
 
 # Load Symphony reference
 ref <- readRDS(paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
@@ -191,3 +187,4 @@ FeaturePlot(subset(query, mapping_error_QC == 'Pass'),
             features = c('LSPC_Quiescent_AUC', 'LSC104_Ng2016_UP_AUC'), 
             split.by = 'Sample', max.cutoff = 'q99', min.cutoff = 'q5') & 
   scale_color_gradientn(colors = rev(brewer.pal(11, 'RdBu')))
+
