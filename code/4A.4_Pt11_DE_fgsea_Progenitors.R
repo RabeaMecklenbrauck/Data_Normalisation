@@ -116,6 +116,38 @@ padj_cutoff <- 0.05
 sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
 write.csv(sig_res_all, "results/DEA_pt11_Progenitors_padj.csv")
 
+#Explore the data
+#Normalise the data, don't use rlog, that does take ages
+vst<-vst(dds_all)
+assay(vst) [1:5, 1:5]
+#Compare the normalised and not normalised data
+plot(log2(1+counts(dds_all, normalized = TRUE) [,1:2]), col = "black", pch = 20, ces = 0.3)
+plot(assay(vst)[,1:2], col = "black", pch = 20, cex = 0.3)
+
+sampleDist<-dist(t(assay(vst)))
+as.matrix(sampleDist)[1:5, 1:5]
+
+sampleDistMatrix <- as.matrix( sampleDist )
+rownames(sampleDistMatrix) <- paste( vst$condition, 
+                                     vst$samples, sep="-" )
+colnames(sampleDistMatrix) <- NULL   
+library( "gplots" )
+library( "RColorBrewer" )
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix, trace="none", col=colours)
+
+#Plot the distance between conditions
+plotPCA(vst, intgroup = c("condition"))
+
+library(genefilter)
+
+topVarGenes<-head(order(rowVars(assay(vst)), decreasing = TRUE), 100)
+heatmap.2( assay(vst)[ topVarGenes, ], scale="row", 
+           trace="none", dendrogram="column", 
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255),
+           ColSideColors = c(baseline="darkgreen", relapse = "darkred")[
+             colData(vst)$condition ] )
+
 
 #Volcano Plot
 devtools::install_github('kevinblighe/EnhancedVolcano')

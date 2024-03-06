@@ -116,6 +116,37 @@ padj_cutoff <- 0.05
 sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
 write.csv(sig_res_all, "results/DEA_pt11_early GMP_padj.csv")
 
+#Explore the data
+#Normalise the data, don't use rlog, that does take ages
+vst<-vst(dds_all)
+assay(vst) [1:5, 1:5]
+#Compare the normalised and not normalised data
+plot(log2(1+counts(dds_all, normalized = TRUE) [,1:2]), col = "black", pch = 20, ces = 0.3)
+plot(assay(vst)[,1:2], col = "black", pch = 20, cex = 0.3)
+
+sampleDist<-dist(t(assay(vst)))
+as.matrix(sampleDist)[1:5, 1:5]
+
+sampleDistMatrix <- as.matrix( sampleDist )
+rownames(sampleDistMatrix) <- paste( vst$condition, 
+                                     vst$samples, sep="-" )
+colnames(sampleDistMatrix) <- NULL   
+library( "gplots" )
+library( "RColorBrewer" )
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix, trace="none", col=colours)
+
+#Plot the distance between conditions
+plotPCA(vst, intgroup = c("condition"))
+
+library(genefilter)
+
+topVarGenes<-head(order(rowVars(assay(vst)), decreasing = TRUE), 100)
+heatmap.2( assay(vst)[ topVarGenes, ], scale="row", 
+           trace="none", dendrogram="column", 
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255),
+           ColSideColors = c(baseline="darkgreen", relapse = "darkred")[
+             colData(vst)$condition ] )
 
 #Volcano Plot
 devtools::install_github('kevinblighe/EnhancedVolcano')
@@ -148,7 +179,7 @@ library(fgsea)
 # Set relevant paths
 list.files()
 bg_path <- "data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/"
-out_path <- "results/"
+out_path <- "results/Pt11/fgsea"
 in_path<-"results/"
 
 # Functions ===================================================
@@ -193,7 +224,7 @@ prepare_gmt <- function(gmt_file, genes_in_data, savefile = FALSE){
 # Analysis ====================================================
 ## 1. Read in data -----------------------------------------------------------
 list.files(in_path)
-df_new <- read.csv("results/DEA_pt11_early GMP_padj.csv", row.names = 1)
+df_new <- read.csv("results/Pt11/DEA/DEA_pt11_early GMP_padj.csv", row.names = 1)
 ## 2. Prepare background genes #leave this out if already done -----------------------------------------------
 # Download gene sets .gmt files
 #https://www.gsea-msigdb.org/gsea/msigdb/collections.jsp
@@ -342,8 +373,8 @@ ggplot(GSEAres_KEGG_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
   labs(x="Pathway", y="Normalized Enrichment Score",
        title="KEGG pathways Enrichment Score from GSEA (p<0.1)")
 #Save
-saveRDS(GSEAres, file = "results/GSEA_pt11_BL_REL_earlyGMP_KEGG.rds")
-data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_earlyGMP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
+saveRDS(GSEAres_KEGG, file = "results/Pt11/fgsea/GSEA_pt11_BL_REL_earlyGMP_KEGG.rds")
+data.table::fwrite(GSEAres_KEGG, file ="results/Pt11/fgsea/GSEA_pt11_BL_REL_earlyGMP_KEGG.tsv" , sep = "\t", sep2 = c("", " ", ""))
 
 ######HALLMARK
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
