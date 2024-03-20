@@ -115,14 +115,14 @@ res_tbl_all <-res_all%>%
   as_tibble()
 res_tbl_all
 #Save the table
-write.csv(res_tbl_all,"results/DEA_pt9_LMPP.csv" )
+write.csv(res_tbl_all,"results/Pt9/DEA_pt9_LMPP.csv" )
 
 #Filter for only significant Genes
 #Set threshold
 padj_cutoff <- 0.05
 #Subset for signifcant results 
 sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
-write.csv(sig_res_all, "results/DEA_pt9_LMPP_padj.csv")
+write.csv(sig_res_all, "results/Pt9/DEA_pt9_LMPP_padj.csv")
 
 #Explore the data
 #Normalise the data, don't use rlog, that does take ages

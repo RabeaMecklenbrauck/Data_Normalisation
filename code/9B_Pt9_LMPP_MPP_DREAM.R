@@ -99,7 +99,8 @@ dge <- edgeR::DGEList(counts = cts,
 #Make a conditions dataframe
 conditions.df <- data.frame(Cell = metadata$Cell,
                             condition = metadata$Sample,
-                            covariate = metadata$Sort)
+                            covariate = metadata$Sort) %>%
+  column_to_rownames("Cell")
 
 param = BiocParallel::SnowParam(2, "SOCK", progressbar=TRUE)
 
@@ -129,6 +130,10 @@ z0 <- dplyr::left_join(z0, resT,by = "Gene")
 
 z0$ranking<- (-log10(z0$p.value))*sign(z0$log2FC)
 z0<-z0 %>% dplyr::arrange(-ranking)
+
+z0 %>%
+ggplot(aes(x = FoldChange, y = log2FC)) +
+  geom_point()
 
 write_csv(z0, "results/Pt9/Pt9_DREAM_LMPP_MPP.csv")
 
@@ -521,6 +526,8 @@ z0 <- dplyr::left_join(z0, resT,by = "Gene")
 
 z0$ranking<- (-log10(z0$p.value))*sign(z0$log2FC)
 z0<-z0 %>% dplyr::arrange(-ranking)
+
+
 
 write_csv(z0, "results/Pt9/Pt9_DREAM_LMPP_MPP_exp0.5.csv")
 

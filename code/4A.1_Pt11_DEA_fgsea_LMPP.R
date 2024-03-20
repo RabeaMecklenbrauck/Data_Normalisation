@@ -25,6 +25,7 @@ pt11_BL_REL <- subset(x=pt11_BL_REL, dominant == "1")
 #Check whether the subsetting worked
 table(pt11_BL_REL$predicted_CellType)
 table(pt11_BL_REL$dominant)
+table(pt11_BL_REL$predicted_CellType, pt11_BL_REL$Sample)
 
 #This leaves you with 524 LMPPs 
 
@@ -161,62 +162,6 @@ EnhancedVolcano(res_table_thres_all,
                 y = 'pvalue')
 
 
-plot1<-plotDispEsts(dds_all, ylim = c(1e-6, 1e1))
-print(plot1)
-hist(res_all$padj, breaks = 20, col = "grey")
-
-
-#Heatmap
-library("pheatmap")
-#Transform count matrix
-vsd<-vst(dds_all, blind = FALSE)
-ntd<-normTransform(dds_all)
-if (!require("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install("vsn")
-library("vsn")
-meanSdPlot(assay(ntd))
-meanSdPlot(assay(vsd))
-
-select<-order(rowMeans(counts(dds_all, normalized = TRUE)), decreasing = TRUE) [1:20]
-select
-ntd
-df<-as.data.frame(colData(dds_all)[,c("condition")])
-colnames(ntd)
-rownames(df)
-colnames(ntd)<-str_sub(colnames(ntd), 1, -3)
-rownames(df)<-colnames(ntd)
-?pheatmap
-library(grid)
-gp = gpar(fill = "green")
-pheatmap(ntd, cluster_rows = FALSE, show_rownames = TRUE, cluster_cols = FALSE, annotation_col = df)
-
-#This gives an error because row and columnnames do not match...
-#Try with another tutorial
-#Transform countb data using the variance stabilizing transform
-deseqvst<-vst(dds_all)
-#Convert the DeSeq transformed object to a data frame
-deseqvst<-assay(deseqvst)
-deseqvst<-as.data.frame(deseqvst)
-deseqvst$gene<-rownames(deseqvst)
-head(deseqvst)
-#˚epp only the significantly differentiated genes where the fold change was at least 3
-sigGenes<-rownames(deseqvst[res_tbl_all$padj<- .05 & abs(res_tbl_all$log2FoldChange)>3, ])
-deseqvst<-deseqvst[deseqvst$gene %in%sigGenes,]
-#Convert the vst counts to long format for ggplot
-library(reshape2)
-library(viridis)
-deseqvst_wide<-deseqvst
-deseqvst_long<-melt(deseqvst, id.vars = c("gene"))
-head(deseqvst_wide)
-head(deseqvst_long)
-heatmap<-ggplot(deseqvst_long, aes(x=variable, y = gene, fill = value)) + geom_raster()+scale_fill_viridis(trans = "sqrt")+
-  theme(axis.text.x=element_text(angle=65, hjust=1), axis.text.y=element_blank(), axis.ticks.y = element_blank())
-print(heatmap)
-#This doesn't really work as well
-#Maybe first explore the data a bit more
-library(ggplot2)
-DESeq2::plotMA(res_all)
 
 #GSEA analysis
 # Setting up environment ===================================================
@@ -395,8 +340,8 @@ data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_wiki.tsv" , sep
 ######KEGG pathways
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
-#according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
-bg_genes_KEGG <- prepare_gmt(gmt_files[11], my_genes, savefile = FALSE)
+#according to this list KEGG = [12], GO = [54], reactome = [18], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_KEGG <- prepare_gmt(gmt_files[12], my_genes, savefile = FALSE)
 
 #Run GSEA
 GSEAres_KEGG <- fgsea(pathways = bg_genes_KEGG, # List of gene sets to check
@@ -423,7 +368,7 @@ plotEnrichment(bg_genes_KEGG[[head(GSEAres_KEGG[order(padj), ], 1)$pathway]],
 #Barplot
 GSEAres_KEGG$adjPvalue <- ifelse(GSEAres_KEGG$padj <= 0.05, "significant", "non-significant")
 cols <- c("non-significant" = "grey", "significant" = "red")
-GSEAres_KEGG_sig=subset(GSEAres_KEGG, GSEAres_KEGG$padj<=0.1)
+GSEAres_KEGG_sig=subset(GSEAres_KEGG, GSEAres_KEGG$padj<=0.05)
 ggplot(GSEAres_KEGG_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
   geom_col() +
   scale_fill_manual(values = cols) +
@@ -439,7 +384,7 @@ data.table::fwrite(GSEAres, file ="results/GSEA_pt11_BL_REL_LMPP_KEGG.tsv" , sep
 gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
 gmt_files
 #according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
-bg_genes_HALLMARK <- prepare_gmt(gmt_files[67], my_genes, savefile = FALSE)
+bg_genes_HALLMARK <- prepare_gmt(gmt_files[68], my_genes, savefile = FALSE)
 
 #Run GSEA
 GSEAres_HALLMARK <- fgsea(pathways = bg_genes_HALLMARK, # List of gene sets to check
@@ -468,14 +413,56 @@ data.table::fwrite(GSEAres_HALLMARK, file ="results/GSEA_pt11_BL_REL_LMPP_HALLMA
 #Visualise
 GSEAres_HALLMARK$adjPvalue <- ifelse(GSEAres_HALLMARK$padj <= 0.05, "significant", "non-significant")
 cols <- c("non-significant" = "grey", "significant" = "red")
-GSEAres_KEGG_sig=subset(GSEAres_KEGG, GSEAres_KEGG$padj<=0.1)
-ggplot(GSEAres_HALLMARK , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+GSEAres_HALLMARK_sig=subset(GSEAres_HALLMARK, GSEAres_HALLMARK$padj<0.05)
+ggplot(GSEAres_HALLMARK_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
   geom_col() +
   scale_fill_manual(values = cols) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   coord_flip() +
   labs(x="Pathway", y="Normalized Enrichment Score",
-       title="Hallmark pathways Enrichment Score from GSEA")
+       title="Hallmark pathways Enrichment Score from GSEA (p<0.05)")
+
+#All pathways
+gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
+gmt_files
+#according to this list KEGG = [11], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_all <- prepare_gmt(gmt_files[5], my_genes, savefile = FALSE)
+
+#Run GSEA
+GSEAres_all <- fgsea(pathways = bg_genes_all, # List of gene sets to check
+                          stats = rankings,
+                          scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
+                          minSize = 10,
+                          maxSize = 500,
+                          nproc = 1) # for parallelisation
+#Check whether it worked
+head(GSEAres_all)
+write_csv(GSEAres_all,"results/GSEA_pt11_LMPP_pathways.csv")
+
+#Order by pvalue
+head(GSEAres_all[order(pval),])
+sum(GSEAres_all[,padj<0.05])
+sum(GSEAres_all[,pval<0.01])
+
+
+# plot the most significantly enriched pathway
+plotEnrichment(bg_genes_all[[head(GSEAres_all[order(padj), ], 1)$pathway]],
+               rankings) + 
+  labs(title = head(GSEAres_all[order(padj), ], 1)$pathway)
+#Save
+saveRDS(GSEAres_all, file = "results/GSEA_pt11_BL_REL_LMPP_all.rds")
+data.table::fwrite(GSEAres_all, file ="results/GSEA_pt11_BL_REL_LMPP_all.tsv" , sep = "\t", sep2 = c("", " ", ""))
+#Visualise
+GSEAres_all$adjPvalue <- ifelse(GSEAres_all$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_all_sig=subset(GSEAres_all, GSEAres_all$padj<0.05)
+ggplot(GSEAres_all_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Allpathways Enrichment Score from GSEA (p<0.05)")
 
 #Run GSEA excluding mitochondrial genes
 df <- read.csv("results/240220_Comparison_normalisation/DEA_pt11_LMPP_spikein_padj.csv", row.names = 1)

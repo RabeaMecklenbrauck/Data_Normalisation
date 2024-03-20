@@ -13,7 +13,7 @@ options(Seurat.object.assay.version = "v3")
 
 #Download the reference 
 # Set directory to store projection reference files
-projection_path = 'results/mapping/'
+projection_path = 'results/'
 
 ###the next steps take a while...
 # Download Bone Marrow Reference - 344 Mb
@@ -187,4 +187,71 @@ FeaturePlot(subset(query, mapping_error_QC == 'Pass'),
             features = c('LSPC_Quiescent_AUC', 'LSC104_Ng2016_UP_AUC'), 
             split.by = 'Sample', max.cutoff = 'q99', min.cutoff = 'q5') & 
   scale_color_gradientn(colors = rev(brewer.pal(11, 'RdBu')))
+
+#I want a heatmap of where the BL and REL samples most project on
+#If I take a dataset already subsetted for BL and REL ans dominant clone
+pt9_celltype<-get_Composition(query_obj = pt9_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap9<-pt9_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap9
+batch_key = 'Sample'
+projection_plots <- plot_Projection_byDonor(
+  query_obj = pt9_BL_REL, 
+  batch_key = batch_key, 
+  ref_obj = ref, 
+  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
+  downsample_reference = TRUE, 
+  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
+  query_point_size = 0.2,   # adjust size of query cells based on # of cells
+)
+projection_plots
+
+
+#and do the same for pt11
+pt11_celltype<-get_Composition(query_obj = pt11_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap11<-pt11_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap11
+batch_key = 'Sample'
+projection_plots <- plot_Projection_byDonor(
+  query_obj = pt11_BL_REL, 
+  batch_key = batch_key, 
+  ref_obj = ref, 
+  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
+  downsample_reference = TRUE, 
+  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
+  query_point_size = 0.2,   # adjust size of query cells based on # of cells
+)
+projection_plots
+
+#and for pt 4
+#Get the df from the DeSeq2 scrip
+pt4_celltype<-get_Composition(query_obj = pt4_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap4<-pt4_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap4
+batch_key = 'Sample'
+projection_plots <- plot_Projection_byDonor(
+  query_obj = pt4_BL_REL, 
+  batch_key = batch_key, 
+  ref_obj = ref, 
+  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
+  downsample_reference = TRUE, 
+  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
+  query_point_size = 0.2,   # adjust size of query cells based on # of cells
+)
+projection_plots
+
+#and for pt14
+pt14_celltype<-get_Composition(query_obj = pt14_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap14<-pt14_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap14
+batch_key = 'Sample'
+projection_plots <- plot_Projection_byDonor(
+  query_obj = pt14_BL_REL, 
+  batch_key = batch_key, 
+  ref_obj = ref, 
+  Hierarchy_only = FALSE, # Whether to exclude T/NK/Plasma/Stromal cells 
+  downsample_reference = TRUE, 
+  downsample_frac = 0.25,   # down-sample reference cells to 25%; reduces figure file size
+  query_point_size = 0.2,   # adjust size of query cells based on # of cells
+)
+projection_plots
 
