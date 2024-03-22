@@ -116,14 +116,19 @@ res_tbl_all <-res_all%>%
   as_tibble()
 res_tbl_all
 #Save the table
-write.csv(res_tbl_all,"results/Pt9/DEA_pt9_LMPP_MPP.csv" )
+
+if(!dir.exists("results/Pt9/DEA/LMPP_MPP/")){
+	dir.create("results/Pt9/DEA/LMPP_MPP/", recursive = T)
+}
+
+write.csv(res_tbl_all,"results/Pt9/DEA/LMPP_MPP/DEA_pt9_LMPP_MPP.csv" )
 
 #Filter for only significant Genes
 #Set threshold
 padj_cutoff <- 0.05
 #Subset for signifcant results 
 sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
-write.csv(sig_res_all, "results/Pt9/DEA_pt9_LMPP_MPP_padj.csv")
+write.csv(sig_res_all, "results/Pt9/DEA/LMPP_MPP/DEA_pt9_LMPP_MPP_padj.csv")
 
 #Explore the data
 #Normalise the data, don't use rlog, that does take ages
@@ -159,7 +164,7 @@ heatmap.2( assay(vst)[ topVarGenes, ], scale="row",
 
 
 #Volcano Plot
-devtools::install_github('kevinblighe/EnhancedVolcano')
+# devtools::install_github('kevinblighe/EnhancedVolcano')
 library(EnhancedVolcano)
 #Create a vector where TRUE values denot padj ,0.05 and fold change >1.5
 res_table_thres_all<- res_tbl_all %>% mutate(threshold=padj <0.05 & abs(log2FoldChange)>0.58)
