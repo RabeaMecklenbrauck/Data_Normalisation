@@ -1,0 +1,490 @@
+---
+title: "Pt4_HSC_GSEA_dream"
+output: html_document
+date: "2024-06-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Running fgsea on the dream results.
+
+```{r}
+# Set seed
+set.seed(123456)
+# Set project library
+.libPaths("results/")
+library(tidyverse) 
+library(RColorBrewer) 
+library(fgsea)
+# Set relevant paths
+list.files()
+bg_path <- "data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/"
+out_path <- "results/pt4/results/DREAM"
+in_path<-"results/"
+
+# Functions ===================================================
+## Function: Adjacency matrix to list -------------------------
+matrix_to_list <- function(pws){
+  pws.l <- list()
+  for (pw in colnames(pws)) {
+    pws.l[[pw]] <- rownames(pws)[as.logical(pws[, pw])]
+  }
+  return(pws.l)
+}
+## Function: prepare_gmt --------------------------------------
+prepare_gmt <- function(gmt_file, genes_in_data, savefile = FALSE){
+  
+  # Read in gmt file
+  gmt <- gmtPathways(gmt_file)
+  hidden <- unique(unlist(gmt))
+  
+  # Convert gmt file to a matrix with the genes as rows and for each go annotation (columns) the values are 0 or 1
+  mat <- matrix(NA, dimnames = list(hidden, names(gmt)),
+                nrow = length(hidden), ncol = length(gmt))
+  for (i in 1:dim(mat)[2]){
+    mat[,i] <- as.numeric(hidden %in% gmt[[i]])
+  }
+  
+  #Subset to the genes that are present in our data to avoid bias
+  hidden1 <- intersect(genes_in_data, hidden)
+  mat <- mat[hidden1, colnames(mat)[which(colSums(mat[hidden1,])>5)]] # filter for gene sets with more than 5 genes annotated
+  # And get the list again
+  final_list <- matrix_to_list(mat) # for this we use the function we previously defined
+  
+  if(savefile){
+    saveRDS(final_list, file = paste0(gsub('.gmt', '', gmt_file), '_subset_', format(Sys.time(), '%d%m'), '.RData'))
+  }
+  
+  print('Wohoo! .gmt conversion successfull!:)')
+  return(final_list)
+}
+```
+
+# Analysis ====================================================
+
+```{r}
+dream<-read.csv("results/Pt4/results/DREAM/Pt4_DREAM_HSC.csv")
+#Prepare ranking of your DF gene
+rankings<- sign(dream$log2FC)*(-log10(dream$p.value)) #use signed p values as preferred
+names(rankings)<-dream$Gene
+#Check list
+head(rankings)
+#Sort genes by signed p value
+rankings<-sort(rankings, decreasing= TRUE)
+#Plot
+plot(rankings)
+#Check for infinite values
+max(rankings)
+min(rankings)
+#if there are infinite values adjust them for very high numbers e.g. 10x the highest non-infinite value
+#max_ranking <- max(rankings[is.finite(rankings)])
+#min_ranking <- min(rankings[is.finite(rankings)])
+#rankings <- replace(rankings, rankings > max_ranking, max_ranking * 10)
+#rankings <- replace(rankings, rankings < min_ranking, min_ranking * 10)
+#rankings <- sort(rankings, decreasing = TRUE) # sort genes by ranking
+
+#Plot first ranked genes of you want (optional)
+ggplot(data.frame(gene_symbol = names(rankings)[1:50], ranks = rankings[1:50]), aes(gene_symbol, ranks)) + 
+  geom_point() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+#With the rankings list we now run fgsea on different backgrounds
+
+#GO
+
+```{r}
+my_genes <- dream$Gene
+list.files(bg_path)
+gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
+#according to this list KEGG = [4], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+#GO pathways
+bg_genes_GO <- prepare_gmt(gmt_files[53], my_genes, savefile = FALSE)
+
+#Run GSEA
+GSEAres_GO <- fgsea(pathways = bg_genes_GO, # List of gene sets to check
+                 stats = rankings,
+                 scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
+                 minSize = 10,
+                 maxSize = 500,
+                 nproc = 1) # for parallelisation
+#Check whether it worked
+head(GSEAres_GO)
+write_csv(GSEAres_GO, "results/pt4/results/DREAM/GSEA_HSC_pt4_GO_dream.csv")
+
+#Order by pvalue
+head(GSEAres_GO[order(pval),])
+sum(GSEAres_GO[,padj<0.05])
+sum(GSEAres_GO[,pval<0.01])
+
+
+# plot the most significantly enriched pathway
+library(ggplot2)
+
+GSEAres_GO$adjPvalue <- ifelse(GSEAres_GO$padj <= 0.05, "significant", "non-significant") #no pavlues under 0.05
+cols <- c("non-significant" = "grey", "significant" = "red")
+#GSEAres_GO_sig=subset(GSEAres_GO, GSEAres_GO$padj<=0.1)
+ggplot(GSEAres_GO, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="GO pathways Enrichment Score from GSEA")
+ggsave("GO_pathways_dream2_pt4_HSC.pdf", path = "results/Pt4/results/Figures", width =10, height = 10, unit = "cm")
+
+#Save
+#Save the results -----------------------------------------------
+data.table::fwrite(GSEAres_GO, file ="results/pt4/results/DREAM/GSEA_pt4_BL_REL_HSC_GO_dream.tsv" , sep = "\t", sep2 = c("", " ", ""))
+```
+
+######KEGG pathways
+
+```{r}
+gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
+
+#according to this list KEGG = [12], GO = [54], reactome = [18], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_KEGG <- prepare_gmt(gmt_files[12], my_genes, savefile = FALSE)
+
+#Run GSEA
+GSEAres_KEGG <- fgsea(pathways = bg_genes_KEGG, # List of gene sets to check
+                 stats = rankings,
+                 scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
+                 minSize = 10,
+                 maxSize = 500,
+                 nproc = 1) # for parallelisation
+#Check whether it worked
+head(GSEAres_KEGG)
+write_csv(GSEAres_KEGG,"results/Pt4/results/DREAM/GSEA_pt4_HSC_KEGG_dream.csv")
+
+#Order by pvalue
+head(GSEAres_KEGG[order(pval),])
+sum(GSEAres_KEGG[,padj<0.05])
+sum(GSEAres_KEGG[,pval<0.01])
+
+
+# plot the most significantly enriched pathway
+plotEnrichment(bg_genes_KEGG[[head(GSEAres_KEGG[order(GSEAres_KEGG$padj), ], 1)$pathway]],
+               rankings) + 
+  labs(title = head(GSEAres_KEGG[order(padj), ], 1)$pathway)
+
+#Barplot
+GSEAres_KEGG$adjPvalue <- ifelse(GSEAres_KEGG$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_KEGG_sig=subset(GSEAres_KEGG, GSEAres_KEGG$padj<=0.05)
+ggplot(GSEAres_KEGG_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="KEGG pathways Enrichment Score from GSEA (p<0.05)")
+ggsave("KEGG_pt4_HSC_dream.pdf", path = "results/Pt4/results/Figures", width =20, height = 30, unit = "cm")
+#Save
+data.table::fwrite(GSEAres_KEGG, file ="results/Pt4/results/DREAM/GSEA_pt4_BL_REL_HSC_KEGG_dream.tsv" , sep = "\t", sep2 = c("", " ", ""))
+```
+######HALLMARK
+
+```{r}
+gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
+#according to this list KEGG = [4], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_HALLMARK <- prepare_gmt(gmt_files[68], my_genes, savefile = FALSE)
+
+#Run GSEA
+GSEAres_HALLMARK <- fgsea(pathways = bg_genes_HALLMARK, # List of gene sets to check
+                          stats = rankings,
+                          scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
+                          minSize = 10,
+                          maxSize = 500,
+                          nproc = 1) # for parallelisation
+#Check whether it worked
+head(GSEAres_HALLMARK)
+write_csv(GSEAres_HALLMARK,"results/Pt4/results/DREAM/GSEA_pt4_HSC_HALLMARK_dream.csv")
+
+#Order by pvalue
+head(GSEAres_HALLMARK[order(pval),])
+sum(GSEAres_HALLMARK[,padj<0.05])
+sum(GSEAres_HALLMARK[,pval<0.01])
+
+
+# plot the most significantly enriched pathway
+plotEnrichment(bg_genes_HALLMARK[[head(GSEAres_HALLMARK[order(padj), ], 1)$pathway]],
+               rankings) + 
+  labs(title = head(GSEAres_HALLMARK[order(padj), ], 1)$pathway)
+#Save
+data.table::fwrite(GSEAres_HALLMARK, file ="results/Pt4/results/DREAM/GSEA_pt4_BL_REL_HSC_HALLMARK_dream.tsv" , sep = "\t", sep2 = c("", " ", ""))
+```
+
+```{r}
+GSEAres_HALLMARK$adjPvalue <- ifelse(GSEAres_HALLMARK$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_HALLMARK_sig=subset(GSEAres_HALLMARK, GSEAres_HALLMARK$padj<0.05)
+ggplot(GSEAres_HALLMARK , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Hallmark pathways Enrichment Score from GSEA")
+ggsave("HALLMAR_pt4_HSC_dream_dream.pdf", path = "results/Pt4/results/Figures", width =25, height = 30, unit = "cm")
+```
+```{r}
+head(GSEAres_HALLMARK)
+```
+
+#All pathways
+
+```{r}
+gmt_files <- list.files(path = bg_path, pattern = '.gmt', full.names = TRUE)
+#according to this list KEGG = [4], GO = [53], reactome = [17], wikipathways [21], misigdb [69], this script uses KEGG, GO and Misigdb
+bg_genes_all <- prepare_gmt(gmt_files[5], my_genes, savefile = FALSE)
+
+#Run GSEA
+GSEAres_all <- fgsea(pathways = bg_genes_all, # List of gene sets to check
+                          stats = rankings,
+                          scoreType = 'std', # in this case we have both pos and neg rankings. if only pos or neg, set to 'pos', 'neg'
+                          minSize = 10,
+                          maxSize = 500,
+                          nproc = 1) # for parallelisation
+#Check whether it worked
+head(GSEAres_all)
+write_csv(GSEAres_all,"results/Pt4/results/DREAM/GSEA_pt4_HSC_pathways_dream.csv")
+
+#Order by pvalue
+head(GSEAres_all[order(pval),])
+sum(GSEAres_all[,padj<0.05])
+sum(GSEAres_all[,pval<0.01])
+
+
+# plot the most significantly enriched pathway
+plotEnrichment(bg_genes_all[[head(GSEAres_all[order(padj), ], 1)$pathway]],
+               rankings) + 
+  labs(title = head(GSEAres_all[order(padj), ], 1)$pathway)
+#Save
+data.table::fwrite(GSEAres_all, file ="results/Pt4/results/DREAM/GSEA_pt4_BL_REL_HSC_all_dream.tsv" , sep = "\t", sep2 = c("", " ", ""))
+
+```
+
+```{r}
+#Visualise
+GSEAres_all$adjPvalue <- ifelse(GSEAres_all$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+GSEAres_all_sig=subset(GSEAres_all, GSEAres_all$padj<0.05)
+ggplot(GSEAres_all_sig , aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Allpathways Enrichment Score from GSEA (p<0.05)")
+ggsave("allPathways_pt4_HSC_Dream.pdf", path = "results/Pt4/results/Figures", width =20, height = 35, unit = "cm")
+```
+
+For other visualisation this code will make a list which is compatible with clusterprofiler.
+
+```{r cars}
+# For data management
+library('tidyverse')
+library("clusterProfiler")
+library("org.Hs.eg.db")
+# For visualisation
+library('pheatmap')
+library("DOSE")
+library("enrichplot")
+library("ggupset")
+```
+
+Define function
+
+```{r}
+# Functions ------------------------------------------------
+## Function: Adjacency matrix to list ####
+matrix_to_list <- function(pws){
+  pws.l <- list()
+  for (pw in colnames(pws)) {
+    pws.l[[pw]] <- rownames(pws)[as.logical(pws[, pw])]
+  }
+  return(pws.l)
+}
+```
+
+Annotate
+
+```{r}
+dream<-dream%>%mutate(diffexpr = case_when(
+  log2FC>0 &adjusted.pval<0.05 ~'UP',
+  log2FC<0 &adjusted.pval<0.05 ~'DOWN',
+  adjusted.pval>0.05 ~"NO"
+))
+```
+
+```{r}
+head(dream$diffexpr)
+```
+
+```{r}
+dream<-dream[dream$diffexpr!="NO",]
+```
+
+Prepare the background gene set
+
+```{r}
+list.files(bg_path)
+bg_genes_HALLMARK <- read.gmt("data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/h.all.v2023.2.Hs.symbols.gmt")
+genes_in_data<-dream$Gene
+bg_genes_all<-read.gmt("data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/c2.all.v2023.2.Hs.symbols.gmt")
+head(bg_genes_all)
+```
+
+```{r}
+deg_results_list<-split(dream, dream$diffexpr)
+```
+
+```{r}
+padj_cutoff <-0.05
+genecount_cutoff<-5
+genes_in_data<-dream$Gene
+nrow(df)
+nrow(bg_genes_HALLMARK)
+bg_genes <- read.gmt("data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/h.all.v2023.2.Hs.symbols.gmt")
+bg_genes<-bg_genes[bg_genes$gene%in%dream$Gene,]
+```
+
+```{r}
+# Run clusterProfiler on each sub-dataframe
+res <- lapply(names(deg_results_list),
+                 function(x) enricher(gene = deg_results_list[[x]]$Gene,
+                                      TERM2GENE =  bg_genes
+                                      ))
+names(res) <- names(deg_results_list)
+
+#Convert the list of enrichResults for each sample_pattern to a dataframe with the pathways
+res_df <- lapply(names(res), function(x) rbind(res[[x]]@result))
+names(res_df) <- names(res)
+res_df <- do.call(rbind, res_df)
+head(res_df)
+
+```
+
+Make a nicer table
+
+```{r}
+#Convert the enrichResults to a dataframe with the pathways
+res_df <- lapply(names(res), function(x) rbind(res[[x]]@result))
+names(res_df) <- names(res)
+res_df <- do.call(rbind, res_df)
+head(res_df)
+```
+
+Filter the output
+
+```{r}
+target_pw<-unique(res_df$ID[res_df$p.adjust<padj_cutoff&res_df$Count>genecount_cutoff])
+res_df<-res_df[res_df$ID%in%target_pw,]
+```
+
+```{r}
+enrichres_Hallmark <- new("enrichResult",
+                 readable = FALSE,
+                 result = res_df,
+                 pvalueCutoff = 0.05,
+                 pAdjustMethod = "BH",
+                 qvalueCutoff = 0.2,
+                 organism = "human",
+                 ontology = "UNKNOWN",
+                 gene = dream$gene,
+                 keytype = "UNKNOWN",
+                 universe = unique(bg_genes_HALLMARK$gene),
+                 gene2Symbol = character(0),
+                 geneSets = bg_genes)
+class(enrichres_Hallmark)
+```
+
+Barplot
+
+```{r}
+barplot(enrichres_Hallmark, showCategory = 20) 
+mutate(enrichres_Hallmark, qscore = -log(p.adjust, base = 10)) %>% 
+  barplot(x = "qscore")
+```
+
+Dotplot
+
+```{r}
+enrichplot::dotplot(enrichres_Hallmark, x = "geneRatio",showCategory = 15, orderBy = "p.adjust") 
+ggsave("Hallmark_pt4_HSC_Dream_dotplot.pdf", path = "results/Pt4/results/Figures", width =20, height = 35, unit = "cm")
+```
+
+and for all pathways
+
+```{r}
+deg_results_list<-split(dream, dream$diffexpr)
+```
+
+```{r}
+padj_cutoff <-0.05
+genecount_cutoff<-5
+genes_in_data<-dream$Gene
+nrow(df)
+nrow(bg_genes_HALLMARK)
+bg_genes <- read.gmt("data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/c2.all.v2023.2.Hs.symbols.gmt")
+bg_genes<-bg_genes[bg_genes$gene%in%dream$Gene,]
+```
+
+```{r}
+# Run clusterProfiler on each sub-dataframe
+res <- lapply(names(deg_results_list),
+                 function(x) enricher(gene = deg_results_list[[x]]$Gene,
+                                      TERM2GENE =  bg_genes
+                                      ))
+names(res) <- names(deg_results_list)
+
+#Convert the list of enrichResults for each sample_pattern to a dataframe with the pathways
+res_df <- lapply(names(res), function(x) rbind(res[[x]]@result))
+names(res_df) <- names(res)
+res_df <- do.call(rbind, res_df)
+head(res_df)
+```
+
+```{r}
+#Convert the enrichResults to a dataframe with the pathways
+res_df <- lapply(names(res), function(x) rbind(res[[x]]@result))
+names(res_df) <- names(res)
+res_df <- do.call(rbind, res_df)
+head(res_df)
+```
+
+```{r}
+target_pw<-unique(res_df$ID[res_df$p.adjust<padj_cutoff&res_df$Count>genecount_cutoff])
+res_df<-res_df[res_df$ID%in%target_pw,]
+```
+
+```{r}
+enrichres_all <- new("enrichResult",
+                 readable = FALSE,
+                 result = res_df,
+                 pvalueCutoff = 0.05,
+                 pAdjustMethod = "BH",
+                 qvalueCutoff = 0.2,
+                 organism = "human",
+                 ontology = "UNKNOWN",
+                 gene = dream$gene,
+                 keytype = "UNKNOWN",
+                 universe = unique(bg_genes_all$gene),
+                 gene2Symbol = character(0),
+                 geneSets = bg_genes)
+class(enrichres_all)
+```
+
+```{r}
+barplot(enrichres_all, showCategory = 20) 
+mutate(enrichres_all, qscore = -log(p.adjust, base = 10)) %>% 
+  barplot(x = "qscore")
+```
+
+```{r}
+enrichplot::dotplot(enrichres_all, x = "geneRatio",showCategory = 25, orderBy = "GeneRatio") 
+ggsave("Hallmark_pt4_HSC_Dream_dotplot_all.pdf", path = "results/Pt4/results/Figures", width =20, height = 35, unit = "cm")
+```

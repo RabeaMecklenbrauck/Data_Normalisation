@@ -1,0 +1,111 @@
+---
+title: "Pt14_LMPP_DGE_visualisation"
+output: html_document
+date: "2024-06-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In the previous code we got lists of differentially expressed genes. The following code will visualise the results.
+Read in the data.
+```{r}
+deseq<- read_csv("results/Pt14/results/Deseq2/DEA_pt14_LMPP_padj.csv")
+dream<-read.csv("results/Pt14/results/Dream/Pt14_DREAM_LMPP.csv")
+```
+Correlation between Dream and Deseq results.
+```{r}
+library(smplot2)
+```
+
+```{r}
+joined<-dream %>%
+  left_join(deseq, by = c("Gene" = "gene"))
+correlation<-joined %>% 
+  ggplot(aes(x = log2FoldChange, y = log2FC))+
+  geom_point()+
+  sm_statCorr(color = '#0f993d', corr_method = 'spearman',
+              linetype = 'dashed')
+ggsave("Correlation_pt14_LMPP_DGE.pdf", plot = correlation, path = "results/Pt14/results/Figures", width =10, height = 10, unit = "cm")
+```
+Volcano Plots
+```{r}
+library(EnhancedVolcano)
+```
+```{r}
+deseq<-deseq %>% mutate(threshold=padj <0.05 & abs(log2FoldChange)>0.58)
+deseq_sig<-deseq%>%filter(padj<0.05&log2FoldChange>2|padj<0.05&log2FoldChange<"-2")
+deseq_sig<-deseq_sig[order(deseq_sig$log2FoldChange, decreasing = TRUE),]
+head(deseq_sig)
+tail(deseq_sig)
+top10genesup<-head(deseq_sig$gene, 15)
+top10genesdown<-tail(deseq_sig$gene, 15)
+top10genesdown
+top10genesup
+DeseqVolcano<-
+  EnhancedVolcano(deseq,
+                lab = deseq$gene,
+                title = "Pt14 LMPP differentially expressed genes",
+                selectLab = c(top10genesup, top10genesdown),
+                x = 'log2FoldChange',
+                y = 'pvalue',
+                col=c('black', 'black', 'black', 'red3'),
+                drawConnectors = TRUE,
+```
+
+
+```{r}
+widthConnectors = 0.75)
+ggsave("Volcano Plot_pt14_LMPP_Deseq2.pdf", plot = DeseqVolcano, path = "results/Pt14/results/Figures", width =20, height = 30, unit = "cm")
+```
+
+Volcano Plot for DREAM
+```{r}
+dream<-dream %>% mutate(threshold=adjusted.pval <0.05 & abs(log2FC)>0.58)
+dream_sig<-deseq%>%filter(padj<0.05&log2FoldChange>2|padj<0.05&log2FoldChange<"-2")
+dream_sig<-dream_sig[order(dream_sig$log2FoldChange, decreasing = TRUE),]
+head(dream_sig)
+tail(dream_sig)
+top10genesup<-head(dream_sig$gene, 10)
+top10genesdown<-tail(deseq_sig$gene, 10)
+top10genesdown
+top10genesup
+dream_Volcano<-EnhancedVolcano(dream,
+                lab = dream$Gene,
+                selectLab = c(top10genesup, top10genesdown),
+                x = 'log2FC',
+                y = 'adjusted.pval',
+                title = "Pt14 LMPP differentially expressed genes",
+                col=c('black', 'black', 'black', 'red3'),
+                drawConnectors = TRUE,
+                widthConnectors = 0.75)
+```
+
+
+```{r}
+ggsave("Volcano Plot_pt14_LMPP_Dream.pdf", plot = dream_Volcano, path = "results/Pt14/results/Figures", width =20, height = 30, unit = "cm")
+
+DeseqVolcano<-
+  EnhancedVolcano(deseq,
+                lab = deseq$gene,
+                title = "Pt14 LMPP MPP differentially expressed genes",
+                selectLab = c("MSLN", "AC027119.1", "KIAA0087","DAD1", "ARSI", "AC026167.1", "ATP8B4", "DACH1"),
+                x = 'log2FoldChange',
+                y = 'pvalue',
+                col=c('black', 'lightgreen', 'lightblue', 'red3'),
+                pointSize = 4.0,
+    labSize = 6.0,
+    labCol = 'black',
+    labFace = 'bold',
+    boxedLabels = TRUE,
+    colAlpha = 4/5,
+    legendPosition = 'right',
+    legendLabSize = 14,
+    legendIconSize = 4.0,
+    drawConnectors = TRUE,
+    widthConnectors = 1.0,
+    colConnectors = 'black')
+DeseqVolcano
+ggsave("Volcano Plot_pt14_LMPP_MPP_Deseq2_regulons.pdf", plot = DeseqVolcano, path = "results/Pt14/results/Figures", width =20, height = 30, unit = "cm")
+```

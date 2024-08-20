@@ -1,0 +1,261 @@
+---
+title: "Regulon analysis"
+output: html_document
+date: "2024-06-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Open the annotated Seurat object
+df<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
+library(tidyverse)
+library(Seurat)
+library(tidyverse)
+library(magrittr)
+if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
+devtools::install_github("aertslab/SCENIC") # To specify a version: ref="v1.1.0"
+packageVersion("SCENIC")
+devtools::install_github("aertslab/SCopeLoomR")
+library(SingleCellExperiment)
+library(SCopeLoomR)
+library(SCENIC)
+```
+
+```{}
+Idents(df) <- 'cluster'
+DefaultAssay(df) <- 'RNA'
+
+exprMat<-df@assays$RNA$data     
+cellInfo<-df@meta.data
+
+loci1 <- which(rowSums(exprMat) > 1*.01*ncol(exprMat))
+exprMat_filter <- exprMat[loci1, ]
+
+add_cell_annotation <- function(loom, cellAnnotation)
+{
+  cellAnnotation <- data.frame(cellAnnotation)
+  if(any(c("nGene", "nUMI") %in% colnames(cellAnnotation)))
+  {
+    warning("Columns 'nGene' and 'nUMI' will not be added as annotations to the loom file.")
+    cellAnnotation <- cellAnnotation[,colnames(cellAnnotation) != "nGene", drop=FALSE]
+    cellAnnotation <- cellAnnotation[,colnames(cellAnnotation) != "nUMI", drop=FALSE]
+  }
+  
+  if(ncol(cellAnnotation)<=0) stop("The cell annotation contains no columns")
+  if(!all(get_cell_ids(loom) %in% rownames(cellAnnotation))) stop("Cell IDs are missing in the annotation")
+  
+  cellAnnotation <- cellAnnotation[get_cell_ids(loom),,drop=FALSE]
+  # Add annotation
+  for(cn in colnames(cellAnnotation))
+  {
+    add_col_attr(loom=loom, key=cn, value=cellAnnotation[,cn])
+  }
+  
+  invisible(loom)
+}
+
+loom <- build_loom("data/7_DCH_out.loom", dgem=exprMat_filter)
+loom <- add_cell_annotation(loom, cellInfo)
+close_loom(loom)
+```
+
+#Run pysenic in Cluster
+
+```{r}
+#Retrieve Scenic
+loom<-open_loom("data/7_DCH_OUT.loom")
+regulons_incidMat <- get_regulons(loom, column.attr.name="Regulons")
+?regulonsToGeneLists
+regulons <- regulonsToGeneLists(regulons_incidMat)
+regulonAUC <- get_regulons_AUC(loom, column.attr.name='RegulonsAUC')
+AUCmat <- AUCell::getAUC(regulonAUC)
+rownames(AUCmat) <- gsub("[(+)]", "", rownames(AUCmat))
+df[['AUC']] <- CreateAssayObject(data = AUCmat)
+
+write_rds(df, "data/8_Seurat_obj_AUC")
+```
+
+```{r}
+df<-readRDS("data/8_Seurat_obj_AUC")
+```
+
+```{r}
+#Identify differential regulons 
+DefaultAssay(df)<-"AUC"
+#Create a subset for patient 11 BL and REL
+pt11<-subset(x=df, subset=Patient=='pt11')
+#Extract metadata
+data11<-pt11@meta.data
+#Create variable marking the dominant clone at BL and REL
+data11<-mutate(data11, dominant = if_else(
+  pt_status == 'pt11 BL'&clone.y %in% c("NDI", "NDIN")|
+    pt_status == 'pt11 REL' & clone.y == 'NDINF', "1","0"))
+#Check whether it worked
+table(data11$dominant, data11$clone.y, data11$Sample)
+#Add metadata back to Seurat object
+pt11<-AddMetaData(object = pt11, metadata = data11, col.name = 'dominant')
+pt11_BL_REL<-subset(x=pt11, pt_status %in% c("pt11 BL","pt11 REL"))
+##Create a subset with only dominant population which is LMPP in this case
+pt11_BL_REL<-subset(x=pt11_BL_REL, subset=predicted_CellType=='LMPP')
+##From this subset select the dominant clones
+pt11_BL_REL <- subset(x=pt11_BL_REL, dominant == "1")
+#Check whether the subsetting worked
+table(pt11_BL_REL$predicted_CellType)
+table(pt11_BL_REL$dominant)
+table(pt11_BL_REL$predicted_CellType, pt11_BL_REL$Sample)
+
+#Define idents
+Idents(object = pt11_BL_REL) <-"Sample"
+#Use Find Markers function to identify the DE regulons
+pt11_LMPP<-FindMarkers(pt11_BL_REL, ident.1 = "REL", ident.2 = "BL")
+pt11_LMPP.up<-pt11_LMPP[which(pt11_LMPP$avg_log2FC>0),]
+pt11_LMPP.down<-pt11_LMPP[which(pt11_LMPP$avg_log2FC<0),]
+pt11_LMPP_regulons<-list(pt11_LMPP.up, pt11_LMPP.down)
+names(pt11_LMPP_regulons)<-c("REL", "BL")
+write.csv(pt11_LMPP, "results/Pt11/results/pt11_TF_LMPP.csv")
+
+
+RidgePlot(pt11_BL_REL, features = c("EGR1","IRF4", "ATF3", "HIVEP2", "TCF4", "POU4F1", "TFAP4", "STAT6"), ncol = 2, assay = "AUC")
+VlnPlot(pt11_BL_REL, features = c("EGR1","IRF4", "ATF3", "HIVEP2", "TCF4", "POU4F1", "TFAP4", "STAT6"), assay = "AUC", ncol = 3)
+DotPlot(pt11_BL_REL, features = c("EGR1","IRF4", "ATF3", "HIVEP2", "TCF4", "POU4F1", "TFAP4", "STAT6"), assay = "AUC") + RotatedAxis()
+
+ggsave("Pt11_LMPP_Regulons_dotplot.pdf", path = "results/Pt11/results/Figures", width =20, height = 35, unit = "cm")
+
+```
+
+```{r}
+#Create a subset for patient 9 BL and REL
+pt9<-subset(x=df, subset=Patient=='pt9')
+#Extract metadata
+data9<-pt9@meta.data
+#Create variable marking the dominant clone at BL and REL
+table(data9$Sample, data9$clone.y)
+data9<-mutate(data9, dominant = if_else(
+  pt_status == 'pt9 BL'&clone.y %in% c("AI_5_11")|
+    pt_status == 'pt9 REL' & clone.y == 'AISF', "1","0"))
+#Check whether it worked
+table(data9$dominant, data9$clone.y, data9$Sample)
+#Add metadata back to Seurat object
+pt9<-AddMetaData(object = pt9, metadata = data9, col.name = 'dominant')
+pt9_BL_REL<-subset(x=pt9, pt_status %in% c("pt9 BL","pt9 REL"))
+#This is the first analysis, so we have to determine the mainly expanded populations first
+table_pt9<-table(pt9_BL_REL$predicted_CellType, pt9_BL_REL$clone.y, pt9_BL_REL$pt_status)
+write.csv(table_pt9, "results/pt9_clones_per_celltype.csv")
+#According to this table the major clone at BL and at REL is mainly found in LMPP and MPP, as well as a bit in HSC
+#Try with combining MPP and LMPP
+pt9_BL_REL<-subset(x=pt9_BL_REL, subset=predicted_CellType%in% c("LMPP", "MPP-MkEry", "MPP-MyLy"))
+##From this subset select the dominant clones
+pt9_BL_REL <- subset(x=pt9_BL_REL, dominant == "1")
+#Check whether the subsetting worked
+table(pt9_BL_REL$predicted_CellType)
+table(pt9_BL_REL$dominant)
+table(pt9_BL_REL$predicted_CellType, pt9_BL_REL$Sample)
+
+#This leaves you with 699 LMPP and MPPs 
+
+#Use find markers to identify DE regulons
+#Define idents
+Idents(object = pt9_BL_REL) <-"Sample"
+DefaultAssay(pt9_BL_REL)<-"AUC"
+#Use Find Markers function to identify the DE regulons
+pt9_LMPP<-FindMarkers(pt9_BL_REL, ident.1 = "REL", ident.2 = "BL")
+write.csv(pt9_LMPP, "results/Pt9/results/pt9_TF_LMPP_MPP.csv")
+RidgePlot(pt9_BL_REL, features = c("ZNF70", "ZNF740", "DBP", "IRF2", "TBX5", "DLX2", "SALL4", "ATF3"), ncol = 2, assay = "AUC")
+VlnPlot(pt9_BL_REL, features = c("ZNF70", "ZNF740", "DBP", "IRF2", "TBX5", "DLX2", "SALL4", "ATF3"), assay = "AUC", ncol = 3)
+DotPlot(pt9_BL_REL, features = c("ZNF70", "ZNF740", "DBP", "IRF2", "TBX5", "DLX2", "SALL4", "ATF3"), assay = "AUC") + RotatedAxis()
+
+RidgePlot(pt9_BL_REL, features = c("HOXA9", "HIF1A", "RELA", "RELB", "STAT3", "STAT1", "SP1", "CEBPA"), ncol = 3, assay = "AUC")
+
+ggsave("Pt9_dotplot.pdf", path = "results/Pt9/results/Figures", width =20, height = 35, unit = "cm")
+```
+
+```{r}
+#Create a subset for patient 4 BL and REL
+pt4<-subset(x=df, subset=Patient=='pt4')
+#Extract metadata
+data4<-pt4@meta.data
+#Create variable marking the dominant clone at BL and REL
+#I chose SIAJ at BL and SIA_20_1, SIA_20_7 and SIAJ_1 at REL
+data4<-mutate(data4, dominant = if_else(
+  pt_status == 'pt4 BL'&clone.y %in% c("SIAJ")|
+    pt_status == 'pt4 REL' & clone.y %in% c("SIA_20_1", "SIA_20_7", "SIAJ_1"), "1","0"))
+#Check whether it worked
+table(data4$dominant, data4$clone.y, data4$Sample)
+#Add metadata back to Seurat object
+pt4<-AddMetaData(object = pt4, metadata = data4, col.name = 'dominant')
+pt4_BL_REL<-subset(x=pt4, pt_status %in% c("pt4 BL","pt4 REL"))
+#This is the first analysis, so we have to determine the mainly expanded populations first
+table_pt4<-table(pt4_BL_REL$predicted_CellType, pt4_BL_REL$clone.y, pt4_BL_REL$pt_status)
+write.csv(table_pt4, "results/Pt4/pt4_clones_per_celltype.csv")
+#According to this table the major clone at BL and at REL is mainly found in the continuum of HSC, MPP, LMPP and MEP
+#We'll start with HSC
+##Create a subset with only dominant population which is LMPP in this case
+pt4_BL_REL<-subset(x=pt4_BL_REL, subset=predicted_CellType=='HSC')
+##From this subset select the dominant clones
+pt4_BL_REL <- subset(x=pt4_BL_REL, dominant == "1")
+#Check whether the subsetting worked
+table(pt4_BL_REL$predicted_CellType)
+table(pt4_BL_REL$dominant)
+
+#Within this data frame I use the Find Markers function with BL and REL as indents
+Idents(object = pt4_BL_REL) <-"Sample"
+DefaultAssay(pt4_BL_REL)<-"AUC"
+#Use Find Markers function to identify the DE regulons
+pt4_HSC<-FindMarkers(pt4_BL_REL, ident.1 = "REL", ident.2 = "BL")
+write.csv(pt4_HSC, "results/Pt4/results/pt4_TF_HSC.csv")
+RidgePlot(pt4_BL_REL, features = c("BCL6", "BHLHE40", "CEBPE", "SPIB", "GFI1B", "RARG", "BPTF", "IRF2"), ncol = 2, assay = "AUC")
+VlnPlot(pt4_BL_REL, features = c("BCL6", "BHLHE40", "CEBPE", "SPIB", "GFI1B", "RARG", "BPTF", "IRF2"), assay = "AUC", ncol = 3)
+DotPlot(pt4_BL_REL, features = c("BCL6", "BHLHE40", "CEBPE", "SPIB", "GFI1B", "RARG", "BPTF", "IRF2"), assay = "AUC") + RotatedAxis()
+
+ggsave("Pt4_HSC_Regulons_dotplot.pdf", path = "results/Pt4/results/Figures", width =20, height = 35, unit = "cm")
+```
+
+```{r}
+#Create a subset for patient 14 BL and REL
+pt14<-subset(x=df, subset=Patient=='pt14')
+#Extract metadata
+data14<-pt14@meta.data
+#Create variable marking the dominant clone at BL and REL
+#I chose DNI at BL and DN_4, DN_4_20 and DN_4_21 at REL
+data14<-mutate(data14, dominant = if_else(
+  pt_status == 'pt14 BL'&clone.y %in% c("DNI")|
+    pt_status == 'pt14 REL' & clone.y %in% c("DN_4", "DN_4_20", "DN_4_21"), "1","0"))
+#Check whether it worked
+table(data14$dominant, data14$clone.y, data14$Sample)
+#Add metadata back to Seurat object
+pt14<-AddMetaData(object = pt14, metadata = data14, col.name = 'dominant')
+pt14_BL_REL<-subset(x=pt14, pt_status %in% c("pt14 BL","pt14 REL"))
+#This is the first analysis, so we have to determine the mainly expanded populations first
+table_pt14<-table(pt14_BL_REL$predicted_CellType, pt14_BL_REL$clone.y, pt14_BL_REL$pt_status)
+write.csv(table_pt14, "results/Pt14/pt14_clones_per_celltype.csv")
+#According to this table the major clone at BL and at REL is mainly found in the continuum of MPP and LMPP
+#We'll start with LMPP
+##Create a subset with only dominant population which is LMPP in this case
+pt14_BL_REL<-subset(x=pt14_BL_REL, subset=predicted_CellType=='LMPP')
+##From this subset select the dominant clones
+pt14_BL_REL <- subset(x=pt14_BL_REL, dominant == "1")
+#Check whether the subsetting worked
+table(pt14_BL_REL$predicted_CellType)
+table(pt14_BL_REL$dominant)
+
+#Within this data frame I use the Find Markers function with BL and REL as indents
+Idents(object = pt14_BL_REL) <-"Sample"
+DefaultAssay(pt14_BL_REL)<-"AUC"
+#Use Find Markers function to identify the DE regulons
+pt14_LMPP<-FindMarkers(pt14_BL_REL, ident.1 = "REL", ident.2 = "BL")
+write.csv(pt4_HSC, "results/Pt14/results/pt14_TF_LMPP.csv")
+
+RidgePlot(pt14_BL_REL, features = c("BCL6", "EGR1", "RARG", "IRF2", "CEBPE", "GFI1B"), ncol = 2, assay = "AUC")
+VlnPlot(pt14_BL_REL, features = c("BCL6", "EGR1", "RARG", "IRF2", "CEBPE", "GFI1B"), assay = "AUC", ncol = 3)
+DotPlot(pt14_BL_REL, features = c("BCL6","EGR1", "RARG", "IRF2", "CEBPE", "GFI1B"), idents = c("BL", "REL"), assay = "AUC") 
+
+ggsave("Pt14_LMPP_Regulons_dotplot.pdf", path = "results/Pt14/results/Figures", width =20, height = 35, unit = "cm")
+```
+It would give us more confidence in the regulons if the gnes within the regulon are also upregulated.
+```{r}
+library(SCENIC)
+```
+

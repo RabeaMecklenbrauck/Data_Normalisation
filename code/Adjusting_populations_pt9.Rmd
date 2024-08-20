@@ -1,0 +1,397 @@
+---
+title: "Pt9 Adjusting Populations"
+output: html_document
+date: "2024-07-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+title: "PT9 Adjusting populations"
+output: html_document
+date: "2024-07-14"
+
+Create a table for HSC population pre-enrichment (taken from supplementary table S2B) for pt9 BL
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+```{r}
+x<-c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "MLP", "B-NK", "Lin-mature","Precursors")
+y<-c(0.1, 2.1, 5.5, 10.6, 79.9, 1.7, 0.01, 0.01)
+y<- y*0.43
+y<-c(y, 16, 41)
+y
+x_name<-"population"
+y_name<-"proportion"
+df<-data.frame(x,y)
+names(df)<-c(x_name, y_name)
+head(df, 5)
+df
+
+
+```
+Calclulate the proportions after enrichment from the transcriptome metadata.
+```{r}
+obj<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
+pt9<-subset(x=obj, subset=Patient=='pt9')
+```
+```{r}
+pt9_BL<-subset(x=pt9, subset=pt_status =='pt9 BL')
+pt9_BL<-pt9_BL@meta.data
+```
+
+```{r}
+x_df<-pt9$Population
+y_df<-pt9$pt_status
+df_enrich<-data.frame(x_df, y_df)
+head(df_enrich, 5)
+df_BL<-subset(df_enrich, y_df=="pt9 BL")
+```
+```{r}
+library(tidyverse)
+table <-table(df_BL$y_df, df_BL$x_df) %>% prop.table
+table
+```
+```{r}
+z<-c(0, 6.6, 16.8, 6.5, 37.8, 0.2, 0, 0, 11.8, 21.5) #Take proprotions from table
+a<-c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "MLP", "B-NK", "Lin-mature","Precursors")
+df_RNA<-data.frame(a,z)
+a_name<-"population"
+z_name<-"proportion_RNA"
+names(df_RNA)<-c(a_name, z_name)
+df_RNA$proportion_RNA<-df_RNA$proportion_RNA/100
+head(df_RNA, 5)
+head(df, 5)
+```
+```{r}
+library(tidyverse)
+df_com<-inner_join(df, df_RNA, by = "population")
+```
+```{r}
+head(df_com, 5)
+```
+```{r}
+df_com$difference<-df_com$proportion-df_com$proportion_RNA
+df_com$difference
+```
+
+```{r}
+ #Check how the populations are written to match
+df_com # take proportions preenrichment, but only from populations represented in the RNA df
+```
+```{r}
+proportions<-c(0.05, 0.34, 0.16, 0.024, 0.009, 0.41, 0.007)
+Population<-c("CMP", "GMP", "Lin-Mature", "LMPP", "MPP", "Precursor", "MEP")
+fraction_sample<-data.frame(Population, proportions)
+fraction_sample
+joined<-pt9_BL%>%left_join(fraction_sample, by = 'Population')%>% 
+  group_by(Population) %>% sample_n(n()*first(proportions))%>%ungroup%>%
+  select(-proportions)
+joined
+
+  
+```
+```{r}
+head(joined)
+```
+
+```{r}
+table <-table(joined$Population) %>% prop.table
+table
+```
+The following steps filters the cells from patient 9 BL based on the cells selected by the sampling step. The column with the unique identifier was lost. To circumvent that I'm selecting for a value which is unique to the cells NCount_gene. It seems to work because the number of rows is the same in the sampled dataset as in the filtered seurat object.
+```{r}
+selected_ids<-joined$Sample_well
+unique_identifier<-joined$nCount_gene
+unique(selected_ids)
+duplicated(selected_ids)
+duplicated(unique_identifier)
+pt9_BL_seurat<-subset( x = pt9, subset= pt_status == "pt9 BL")
+nrow(pt9_BL_seurat@meta.data)
+pt9_BL_seurat_filter<-subset(x= pt9_BL_seurat, subset = nCount_gene %in% unique_identifier )
+nrow(pt9_BL_seurat_filter@meta.data)
+```
+This filtered Seurat object should now be ready to be projected on the reference.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(symphony)
+library(ggpubr)
+library(patchwork)
+library(AUCell)
+library(jcolors)
+library(BoneMarrowMap)
+library(RColorBrewer)
+```
+Set up the reference map.
+```{r}
+projection_path = 'results/'
+batchvar<-'pt_status'
+# Load Symphony reference
+ref <- readRDS(paste0(projection_path, 'BoneMarrow_RefMap_SymphonyRef.rds'))
+# Set uwot path for UMAP projection
+ref$save_uwot_path <- paste0(projection_path, 'BoneMarrow_RefMap_uwot_model.uwot')
+#Visualize the Reference BM
+ReferenceSeuratObj <- create_ReferenceObject(ref)
+DimPlot(ReferenceSeuratObj, reduction = 'umap', group.by = 'CellType_Annotation_formatted', 
+        raster=FALSE, label=TRUE, label.size = 4)
+#Visualize the Reference BM
+ReferenceSeuratObj <- create_ReferenceObject(ref)
+DimPlot(ReferenceSeuratObj, reduction = 'umap', group.by = 'CellType_Annotation_formatted', 
+        raster=FALSE, label=TRUE, label.size = 4)
+#Map the data, mapping done using Symphony (Kang et al, 2021)
+mapped_BL <- map_Query(
+  exp_query = pt9_BL_seurat_filter@assays$RNA$counts, 
+  metadata_query = pt9_BL_seurat_filter@meta.data,
+  ref_obj = ref,
+  vars = batchvar
+)
+#Exclude cells with a high mapping error
+mapped_BL<-mapped_BL%>% calculate_MappingError(., reference=ref, MAD_threshold = 2.5)
+#Remove cells with a high mapping error (optional)
+mappedQC_BL <- subset( mapped_BL, mapping_error_QC == 'Pass')
+
+#Cell Type assignment using 30 K-Nearest Neighbours
+# Predict Hematopoietic Cell Types by KNN classification
+mappedQC_BL <- predict_CellTypes(
+  query_obj = mappedQC_BL, 
+  ref_obj = ref, 
+  initial_label = 'initial_CellType', # celltype assignments before filtering on mapping QC
+  final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
+) 
+
+#Predict Pseudotime values by k-nearest neighbours
+mappedQC_BL <- predict_Pseudotime(
+  query_obj = mappedQC_BL,
+  ref_obj = ref,
+  initial_label = 'initial Pseudotime',
+  final_label = 'predicted_Pseudotime')
+FeaturePlot(mappedQC_BL, features = c ('predicted_Pseudotime'))
+```
+
+```{r}
+FeaturePlot(mappedQC_BL, features = c ('predicted_Pseudotime'))
+```
+```{r}
+DimPlot(mappedQC_BL, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
+```
+
+
+Repeat the same for Pt9 at relapse.
+```{r}
+x<-c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "MLP", "B-NK", "Lin-mature","Precursors")
+y<-c(0.2,3.1, 10.2, 10.2, 76.3, 0.04, 0, 0)
+y<- y*0.85
+y<-c(y, 7, 8)
+y<-y/100
+x_name<-"population"
+y_name<-"proportion"
+df<-data.frame(x,y)
+names(df)<-c(x_name, y_name)
+head(df, 5)
+```
+
+```{r}
+x_df<-pt9$Population
+y_df<-pt9$pt_status
+df_enrich<-data.frame(x_df, y_df)
+head(df_enrich, 5)
+df_BL<-subset(df_enrich, y_df=="pt9 REL")
+```
+```{r}
+table <-table(df_BL$y_df, df_BL$x_df) %>% prop.table
+table
+```
+```{r}
+z<-c(0.02,0.19,0.15,0.14, 0.33, 0, 0,0, 0.045, 0.12)
+a<-c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "MLP", "B-NK", "Lin-mature","Precursors")
+df_RNA<-data.frame(a,z)
+a_name<-"population"
+z_name<-"proportion_RNA"
+names(df_RNA)<-c(a_name, z_name)
+head(df_RNA, 5)
+```
+```{r}
+df_com<-inner_join(df, df_RNA, by = "population")
+```
+```{r}
+head(df_com,5)
+```
+```{r}
+df_com$difference<-df_com$proportion-df_com$proportion_RNA
+df_com$difference
+df_com
+```
+```{r}
+#proportions<-df_com$proportion
+#Population<-df_com$population
+pt9_REL<-subset(x=pt9, subset=pt_status =='pt9 REL')
+pt9_REL<-pt9_REL@meta.data
+table(pt9_REL$Population) #adjust the names of the populations accordingly, otherwise the joining doesn't work
+```
+```{r}
+proportions<-c(0.09, 0.09, 0.648, 0.002, 0.03, 0.08, 0.07)
+Population<-c("CMP", "LMPP", "GMP", "HSC","MPP","Lin-Mature", "Precursor") #only populations represented in the RNA data
+fraction_sample<-data.frame(Population, proportions)
+fraction_sample
+joined<-pt9_REL%>%left_join(fraction_sample, by = 'Population')%>% 
+  group_by(Population)%>% sample_n(n()*first(proportions))%>%ungroup%>%
+  select(-proportions)
+head(joined,5)
+```
+```{r}
+table <-table(joined$Population) %>% prop.table
+table
+```
+The proportions do not match exactly. I guess that's because Lin-Mature cells for examples are underrepresented in the dataset so you cannot match exactly!?
+I'll add the metadata in the same very unelegant way I did for the BL dataset.
+
+```{r}
+selected_ids<-joined$Sample_well
+unique_identifier<-joined$nCount_gene
+unique(selected_ids)
+duplicated(selected_ids)
+duplicated(unique_identifier)
+pt9_REL_seurat<-subset( x = pt9, subset= pt_status == "pt9 REL")
+nrow(pt9_REL_seurat@meta.data)
+pt9_REL_seurat_filter<-subset(x= pt9_REL_seurat, subset = nCount_gene %in% unique_identifier )
+nrow(pt9_REL_seurat_filter@meta.data)
+```
+Project the reduced cell number in the reference.
+```{r}
+#Map the data, mapping done using Symphony (Kang et al, 2021)
+mapped_REL <- map_Query(
+  exp_query = pt9_REL_seurat_filter@assays$RNA$counts, 
+  metadata_query = pt9_REL_seurat_filter@meta.data,
+  ref_obj = ref,
+  vars = batchvar
+)
+#Exclude cells with a high mapping error
+mapped_REL<-mapped_REL%>% calculate_MappingError(., reference=ref, MAD_threshold = 2.5)
+#Remove cells with a high mapping error (optional)
+mappedQC_REL <- subset( mapped_REL, mapping_error_QC == 'Pass')
+
+#Cell Type assignment using 30 K-Nearest Neighbours
+# Predict Hematopoietic Cell Types by KNN classification
+mappedQC_REL <- predict_CellTypes(
+  query_obj = mappedQC_REL, 
+  ref_obj = ref, 
+  initial_label = 'initial_CellType', # celltype assignments before filtering on mapping QC
+  final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
+) 
+
+#Predict Pseudotime values by k-nearest neighbours
+mappedQC_REL <- predict_Pseudotime(
+  query_obj = mappedQC_REL,
+  ref_obj = ref,
+  initial_label = 'initial Pseudotime',
+  final_label = 'predicted_Pseudotime')
+FeaturePlot(mappedQC_REL, features = c ('predicted_Pseudotime'))
+```
+
+
+```{r}
+DimPlot(mappedQC_REL, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
+```
+```{r}
+pt9_BL_REL<-merge(mappedQC_BL, y= mapped_REL, add.cell.ids = c("BL", "REL"), merge.data = TRUE)
+pt9_celltype<-get_Composition(query_obj = pt9_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap9<-pt9_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap9
+
+pt9_celltype<-get_Composition(query_obj = pt9_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap9<-pt9_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap9
+```
+Filter for the dominant clone only
+```{r}
+data_pt9_BL_REL<-pt9_BL_REL@meta.data
+data9<-mutate(data_pt9_BL_REL, dominant = if_else(
+  pt_status == 'pt9 BL'&clone.y %in% c("AI_5_11")|
+    pt_status == 'pt9 REL' & clone.y == 'AISF', "1","0"))
+#Check whether it worked
+table(data9$dominant, data9$clone.y, data9$Sample)
+```
+```{r}
+#Add metadata back to Seurat object
+pt9_BL_REL<-AddMetaData(object = pt9_BL_REL, metadata = data9, col.name = 'dominant')
+pt9_BL_REL <- subset(x=pt9_BL_REL, dominant == "1")
+pt9_celltype<-get_Composition(query_obj = pt9_BL_REL, donor_key = "Sample", celltype_label="predicted_CellType", return_type = 'proportion')
+heatmap9<-pt9_celltype%>%column_to_rownames('Sample')%>%data.matrix()%>%ComplexHeatmap::Heatmap()
+heatmap9
+```
+```{r}
+mapped_QC <- map_Query(
+  exp_query = pt9_BL_REL@assays$RNA$counts, 
+  metadata_query = pt9_BL_REL@meta.data,
+  ref_obj = ref,
+  vars = batchvar
+)
+#Exclude cells with a high mapping error
+mapped_REL<-mapped_QC%>% calculate_MappingError(., reference=ref, MAD_threshold = 2.5)
+#Remove cells with a high mapping error (optional)
+mappedQC <- subset( mapped_QC, mapping_error_QC == 'Pass')
+
+#Cell Type assignment using 30 K-Nearest Neighbours
+# Predict Hematopoietic Cell Types by KNN classification
+mappedQC <- predict_CellTypes(
+  query_obj = mappedQC, 
+  ref_obj = ref, 
+  initial_label = 'initial_CellType', # celltype assignments before filtering on mapping QC
+  final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
+) 
+umap_plot<-DimPlot(mapped_QC, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
+```
+```{r}
+pt9_BL_REL[["RNA"]]<-JoinLayers(pt9_BL_REL[["RNA"]])
+mapped_QC <- map_Query(
+  exp_query = pt9_BL_REL@assays$RNA$counts, 
+  metadata_query = pt9_BL_REL@meta.data,
+  ref_obj = ref,
+  vars = batchvar
+)
+#Exclude cells with a high mapping error
+mapped_REL<-mapped_QC%>% calculate_MappingError(., reference=ref, MAD_threshold = 2.5)
+#Remove cells with a high mapping error (optional)
+mappedQC <- subset( mapped_QC, mapping_error_QC == 'Pass')
+
+#Cell Type assignment using 30 K-Nearest Neighbours
+# Predict Hematopoietic Cell Types by KNN classification
+mappedQC <- predict_CellTypes(
+  query_obj = mappedQC, 
+  ref_obj = ref, 
+  initial_label = 'initial_CellType', # celltype assignments before filtering on mapping QC
+  final_label = 'predicted_CellType'  # celltype assignments with map QC failing cells assigned as NA
+) 
+umap_plot<-DimPlot(mapped_QC, reduction = 'umap', group.by = c('predicted_CellType'), raster=FALSE, label=TRUE, label.size = 4)
+umap_plot
+ggsave("UMAP Pt9 on reference.pdf", plot = umap_plot, path = "results/Pt9/results/Figures", width =20, height = 30, unit = "cm")
+```
+```{r}
+umap_data <-as.data.frame(umap_plot$data)
+metadata<-pt9_BL_REL@meta.data
+umap_data<-data.frame(names = row.names(umap_data), umap_data)
+metadata<-data.frame(names = row.names(metadata), metadata)
+merged_umap <- full_join(umap_data, metadata, by = "names")
+merged_umap<-merged_umap%>%mutate(highlight = case_when(
+ clone.y == "AI_5_11" & Sample == "BL"~ "1",
+  clone.y == "AISF" & Sample == "REL" ~ "2", 
+  clone.y!="AISF"|clone.y !="AI_5_11" ~ "3"))
+sum(is.na(merged_umap$highlight))
+merged_umap<-merged_umap%>%arrange(desc(highlight)) #reorders the df so that colored points are on top of the grey ones
+
+cols <- c("1" = "darkorange3", "2"="darkolivegreen4", "3"="darkgrey", "NA" = "darkgrey")
+umap_highlight<-ggplot(merged_umap, aes(x = umap_1, y = umap_2))+
+  geom_point(aes(color = highlight), size = 0.4)+
+  scale_color_manual(values = cols)+
+  labs(color = "Cells")+
+  theme_minimal()+
+  theme(legend.position = "right")
+
+ggsave("UMAP Pt9 on reference_highlighted.pdf", plot = umap_highlight, path = "results/Pt9/results/Figures", width =20, height = 30, unit = "cm")
+umap_highlight
+```
+

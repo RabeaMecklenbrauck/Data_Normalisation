@@ -1,0 +1,260 @@
+---
+title: "Pt14_LMPP_DGE"
+output: html_document
+date: "2024-06-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df<-readRDS("data/4_Seurat_obj_CNA_referenceannotations.rds")
+library(tidyverse)
+library(Seurat)
+
+
+#Create a subset for patient 14 BL and REL
+pt14<-subset(x=df, subset=Patient=='pt14')
+#Extract metadata
+data14<-pt14@meta.data
+#Create variable marking the dominant clone at BL and REL
+#I chose DNI at BL and DN_4, DN_4_20 and DN_4_21 at REL
+data14<-mutate(data14, dominant = if_else(
+  pt_status == 'pt14 BL'&clone.y %in% c("DNI")|
+    pt_status == 'pt14 REL' & clone.y %in% c("DN_4", "DN_4_20", "DN_4_21"), "1","0"))
+#Check whether it worked
+table(data14$dominant, data14$clone.y, data14$Sample)
+#Add metadata back to Seurat object
+pt14<-AddMetaData(object = pt14, metadata = data14, col.name = 'dominant')
+pt14_BL_REL<-subset(x=pt14, pt_status %in% c("pt14 BL","pt14 REL"))
+#This is the first analysis, so we have to determine the mainly expanded populations first
+table_pt14<-table(pt14_BL_REL$predicted_CellType, pt14_BL_REL$clone.y, pt14_BL_REL$pt_status)
+write.csv(table_pt14, "results/Pt14/pt14_clones_per_celltype.csv")
+#According to this table the major clone at BL and at REL is mainly found in the continuum of MPP and LMPP
+#We'll start with LMPP
+##Create a subset with only dominant population which is LMPP in this case
+pt14_BL_REL<-subset(x=pt14_BL_REL, subset=predicted_CellType=='LMPP')
+##From this subset select the dominant clones
+pt14_BL_REL <- subset(x=pt14_BL_REL, dominant == "1")
+#Check whether the subsetting worked
+table(pt14_BL_REL$predicted_CellType)
+table(pt14_BL_REL$dominant)
+```
+This leaves you with 262 LMPP
+
+Deseq pseudobulk workflow
+Load necessary libraries
+```{r}
+library(ExperimentHub)
+library(DESeq2)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Pt14 LMPPs are compared BL against relapse, logFC schrinkage using apeglm and filtered and unfiltered table are stored.
+```{r}
+# 1. counts matrix - sample level
+# counts aggregate to sample level
+pt14_BL_REL$samples <- paste0(pt14_BL_REL$Sample, pt14_BL_REL$Sample_well)
+
+#Create dataset with counts and genes
+cts <- AggregateExpression(pt14_BL_REL, 
+                           group.by = c("samples"),
+                           assays = 'RNA',
+                           slot = "counts",
+                           return.seurat = FALSE)
+
+cts <- cts$RNA
+
+# transpose
+cts.t <- t(cts)
+
+# convert to data.frame
+cts.t <- as.data.frame(cts.t)
+
+# get values where to split cell type and sample
+splitRows <- gsub('_.*', '', rownames(cts.t))
+
+# fix colnames and transpose
+cts.t.modified <- t(cts.t)
+cts.t.modified[(1:10), (1:10)]
+
+```
+
+
+```{r}
+# Create Count matrix for DE
+#Analyse for all cells
+# 1. generate sample level metadata
+colData_all <- data.frame(samples = colnames(cts.t.modified))
+View(colData_all)
+
+#2. generate a variable for the condition to compare (e.g. relapse and BL)
+colData_all <- colData_all %>%
+  mutate(condition = ifelse(grepl('BL', samples), 'baseline', 'relapse')) 
+
+```
+
+Next, we run the actual Deseq2
+```{r}
+# 1.Create DESeq2 object   
+dds_all <- DESeqDataSetFromMatrix(countData = cts.t.modified,
+                                  colData = colData_all,
+                                  design = ~ condition)
+
+# 2.filter -> optional to exclude genes with a low number of reads
+keep <- rowSums(counts(dds_all)) >=10
+dds_all <- dds_all[keep,]
+
+# 3. run DESeq2
+dds_all <- DESeq(dds_all)
+
+# 4. Check the coefficients for the comparison
+resultsNames(dds_all)
+
+
+# 5. Generate results object
+res_all <- results(dds_all, contrast = c("condition", 'relapse', 'baseline'))
+res_all
+res_all<-as.data.frame(res_all)
+```
+As recommended we shrink the LFC with apeglm (which is the recommended method)
+```{r} 
+#6. Shrink the logFC
+library(apeglm)
+res_ape<-lfcShrink(dds_all, coef = 2, type = "apeglm")
+
+
+#7.Create a table
+res_tbl_all <-res_ape%>% 
+  data.frame()%>%
+  rownames_to_column(var="gene") %>% 
+  as_tibble()
+res_tbl_all
+#Save the table
+write.csv(res_tbl_all,"results/pt14/results/Deseq2/DEA_pt14_LMPP.csv" )
+
+
+#8.Filter for only significant Genes
+#Set threshold
+padj_cutoff <- 0.05
+#Subset for signifcant results 
+sig_res_all<- subset(res_tbl_all, res_tbl_all$padj<0.05)
+write.csv(sig_res_all, "results/Pt14/results/Deseq2/DEA_pt14_LMPP_padj.csv")
+```
+
+As a complementary approach, we are using DREAM to identify DEGs.
+```{r}
+#Get the metadata table
+metadata<-pt14_BL_REL@meta.data
+metadata$Cell<-rownames(metadata)
+REL<-metadata[which(metadata$Sample == "REL"),]
+BL<-metadata[which(metadata$Sample == "BL"),]
+#Extract the count matrix
+cts<-pt14_BL_REL@assays$RNA$counts
+cts <- as.matrix(cts)
+#Filter out ERCC
+ERCC.genes<-grep("^ERCC-", rownames(cts), value = T)
+#-> are not included anymore
+# This code is redundant
+# This code is redundant
+cellsREL.m<-cts[,colnames(cts) %in% row.names(REL)]
+cellsBL.m<-cts[,colnames(cts) %in% row.names(BL)]
+
+MeanREL<-Matrix::rowMeans(cellsREL.m)
+MeanBL<-Matrix::rowMeans(cellsBL.m)
+Foldchange<-MeanREL/MeanBL
+
+cellsREL.bi <- cellsREL.m
+cellsREL.bi[cellsREL.bi >0] <- 1
+REL.freq<-Matrix::rowSums(cellsREL.bi)
+
+cellsBL.bi <- cellsBL.m
+
+
+cellsBL.bi[cellsBL.bi >0] <- 1
+BL.freq<-Matrix::rowSums(cellsBL.bi)
+
+ExpFractionREL=REL.freq/ncol(cellsREL.m)
+ExpFractionBL=BL.freq/ncol(cellsBL.m)
+
+z0<-data.frame(Gene=rownames(cts),
+               ExpREL=MeanREL,
+               ExpBL=MeanBL,
+               FoldChange=Foldchange,
+               ExpFreqREL=REL.freq,
+               ExpFreqBL=BL.freq,
+               TotalREL=ncol(cellsREL.m),
+               TotalBL=ncol(cellsBL.m),
+               ExpFractionREL=ExpFractionREL,
+               ExpFractionBL=ExpFractionBL)
+rm(cellsREL.m, cellsBL.m, cellsREL.bi, cellsBL.bi)
+````
+
+```{r}
+
+# Filter out genes expressed in fewer cells than min.expFraction
+z0<-subset(z0,ExpFractionREL >=0.1 | ExpFractionBL >=0.1)
+cts<-cts[rownames(cts) %in% as.character(z0$Gene),]
+
+# Normalize using scran size factors
+#this is  absolutely necessary
+# Get scran size factors
+sf <- metadata$sizeFactor
+
+nsf <- log(sf/Matrix::colSums(cts))
+nsf <- exp(nsf - mean(nsf, na.rm=T))
+
+dge <- edgeR::DGEList(counts = cts,
+                      lib.size = Matrix::colSums(cts),
+                      norm.factors = nsf,
+                      remove.zeros = FALSE)
+
+#Make a conditions dataframe
+conditions.df <- data.frame(Cell = metadata$Cell,
+                            condition = metadata$Sample,
+                            covariate = metadata$Sort) %>%
+  column_to_rownames("Cell")
+
+```
+Only now we can run dream
+```{r}
+param = BiocParallel::SnowParam(2, "SOCK", progressbar=TRUE)
+
+# estimate weights using linear mixed model of dream
+print("Estimating weights using linear mixed model of dream")
+formula <- ~ Sample
+vobjDream = variancePartition::voomWithDreamWeights( dge, ~condition, conditions.df , BPPARAM=param )
+
+
+# Fit the dream model on each gene
+# By default, uses the Satterthwaite approximation for the hypothesis test
+print("Fitting dream model on each gene")
+fitmm = variancePartition::dream( vobjDream, ~condition, conditions.df , BPPARAM=param )
+fitmm = variancePartition::eBayes(fitmm)
+```
+
+```{r}
+# Examine design matrix
+print(head(fitmm$design, 3))
+
+# Get results of hypothesis test on coefficients of interest
+resT <- variancePartition::topTable( fitmm, coef=2, number=Inf )
+resT <- tibble::rownames_to_column(resT, "Gene")
+
+resT <- resT %>% dplyr::rename(p.value = P.Value, 
+                               adjusted.pval = adj.P.Val, 
+                               log2FC = logFC)
+z0 <- dplyr::left_join(z0, resT,by = "Gene")
+
+z0$ranking<- (-log10(z0$p.value))*sign(z0$log2FC)
+z0<-z0 %>% dplyr::arrange(-ranking)
+
+z0 %>%
+  ggplot(aes(x = FoldChange, y = log2FC)) +
+  geom_point()
+
+write_csv(z0, "results/Pt14/results/DREAM/Pt14_DREAM_LMPP.csv")
+```
+
