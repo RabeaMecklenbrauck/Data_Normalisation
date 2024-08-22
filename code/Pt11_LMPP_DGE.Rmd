@@ -254,4 +254,36 @@ z0 %>%
 
 write_csv(z0, "results/Pt11/results/DREAM/Pt11_DREAM_LMPP.csv")
 ```
+Rund Limma
+
+```{r}
+# Make design matrix
+table(conditions.df$condition)
+as.formula(formula)
+design <- model.matrix(~condition, data = conditions.df)
+View(design)
+colnames(design) <- c("REL", "BL")
+## Limma
+x = new("EList")
+x$E = edgeR::cpm(dge, log=TRUE, prior.count=3)
+ fit<-limma::lmFit(object = x, 
+                        design = design)
+fit <- limma::eBayes(fit, trend = TRUE)
+limma::plotSA(fit)
+resT <- limma::topTable(fit,coef=2, n = Inf, adjust.method = "BH")
+resT <- tibble::rownames_to_column(resT, "Gene")
+resT <- resT %>% dplyr::rename(p.value = P.Value, 
+                                     adjusted.pval = adj.P.Val, 
+                                     log2FC = logFC)
+resT_sig = subset (resT, resT$adjusted.pval<0.05)
+res_T_up=subset(resT_sig, resT_sig$log2FC>0)
+```
+
+```{r}
+library(limma)
+design<-model.matrix(~pt11_BL_REL$Sample)
+fit<-limma::lmFit(x, design)
+fit<-eBayes(fit)
+topTable(fit)
+```
 

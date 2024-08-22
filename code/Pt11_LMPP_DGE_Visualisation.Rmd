@@ -11,8 +11,10 @@ knitr::opts_chunk$set(echo = TRUE)
 In the previous code we got lists of differentially expressed genes. The following code will visualise the results.
 Read in the data.
 ```{r}
-deseq<- read.csv("results/Pt11/results/Deseq2/DEA_pt11_LMPP_padj.csv")
+deseq<- read.csv("results/Pt11/results/Deseq2/DEA_pt11_LMPP.csv")
 dream<-read.csv("results/Pt11/results/Dream/Pt11_DREAM_LMPP.csv")
+deseq_sig = subset(deseq, deseq$padj<0.05)
+dream_sig = subset(dream, dream$adjusted.pval<0.05)
 ```
 Correlation between Dream and Deseq results.
 ```{r}
@@ -29,7 +31,28 @@ correlation<-joined %>%
   sm_statCorr(color = '#0f993d', corr_method = 'spearman',
               linetype = 'dashed')
 ggsave("Correlation_pt11_LMPP_DGE.pdf", plot = correlation, path = "results/Pt11/results/Figures", width =10, height = 10, unit = "cm")
+correlation
 ```
+```{r}
+correlation_p<-joined %>% 
+  ggplot(aes(x = p.value, y = pvalue))+
+  geom_point()+
+  sm_statCorr(color = '#0f993d', corr_method = 'spearman',
+              linetype = 'dashed')
+correlation_p
+```
+```{r}
+joined_sig<-dream_sig %>%
+  left_join(deseq_sig, by = c("Gene" = "gene"))
+correlation_p<-joined_sig %>% 
+  ggplot(aes(x = , y = padj))+
+  geom_point()+
+  sm_statCorr(color = '#0f993d', corr_method = 'spearman',
+              linetype = 'dashed')
+correlation_p
+```
+
+
 Volcano Plots
 ```{r}
 library(EnhancedVolcano)
@@ -49,8 +72,8 @@ top10genesup
 library(clusterProfiler)
 list<-read.gmt("data/GSEA_references/Reference gene sets/msigdb_v2023.2.Hs_GMTs/VALK_AML_WITH_FLT3_ITD.v2023.2.Hs.gmt")
 DeseqVolcano<-
-  EnhancedVolcano(deseq,
-                lab = deseq$gene,
+  EnhancedVolcano(deseq_sig,
+                lab = deseq_sig$gene,
                 title = "Pt11 LMPP differentially expressed genes",
                 selectLab = c("SORT1", "DPYSL2", "ATP10A", "PDE4D", "SEM3A3", "HBB", "CCSER1", "DACH1", "AREG", "SEMA3A", "RXFP1", "VNN1"),
                 x = 'log2FoldChange',
@@ -67,7 +90,8 @@ DeseqVolcano<-
     legendIconSize = 4.0,
     drawConnectors = TRUE,
     widthConnectors = 1.0,
-    colConnectors = 'black')
+    colConnectors = 'black',
+    ylim = c(0,150))
 ggsave("Volcano Plot_pt11_LMPP_Deseq2_regulons.pdf", plot = DeseqVolcano, path = "results/Pt11/results/Figures", width =20, height = 30, unit = "cm")
 ```
 ```{r}
@@ -82,8 +106,8 @@ OXPHOS<-c("COX6A1", "ATP5F1B", "ATP2B1", "ATP5MF", "NDUFAB1")
 MYC<-c("HSPE1", "PPIA", "C1QBP",  "RAN",  "RPL6")
 
 DeseqVolcano<-
-  EnhancedVolcano(deseq,
-                lab = deseq$gene,
+  EnhancedVolcano(deseq_sig,
+                lab = deseq_sig$gene,
                 title = "Pt11 LMPP differentially expressed genes",
                 selectLab = c(inflammation, OXPHOS, MYC),
                 x = 'log2FoldChange',
@@ -100,7 +124,8 @@ DeseqVolcano<-
     legendIconSize = 4.0,
     drawConnectors = TRUE,
     widthConnectors = 1.0,
-    colConnectors = 'black')
+    colConnectors = 'black',
+    ylim = c(0,150))
 DeseqVolcano
 ```
 ```{r}
@@ -137,6 +162,22 @@ dream_Volcano<-EnhancedVolcano(dream,
                 title = "Pt11 LMPP differentially expressed genes",
                 col=c('black', 'black', 'black', 'red3'),
                 drawConnectors = TRUE,
-                widthConnectors = 0.75)
+                widthConnectors = 0.75, 
+                xlim=c(-11, 10))
 ggsave("Volcano Plot_pt11_LMPP_Dream.pdf", plot = dream_Volcano, path = "results/Pt11/results/Figures", width =20, height = 30, unit = "cm")
+dream_Volcano
 ```
+Ven Diagramm of the overlap of dream and deseq in LMPP
+```{r}
+library(devtools)    
+install_github("guokai8/VennDetail")
+library(VennDetail)
+library(readxl)
+library(tidyverse)
+library(utils)
+```
+```{r}
+venn11_dream_deseq<-venndetail(list(dream = dream_sig$Gene, deseq_sig$gene))
+plot(venn11_dream_deseq)
+```
+
